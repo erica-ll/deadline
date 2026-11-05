@@ -1,0 +1,11 @@
+{
+  "provider": "openai",
+  "model": "gpt-6-luna",
+  "asOf": "2026-11-05",
+  "sourceUrl": "https://developers.openai.com/api/docs/pricing",
+  "inputUsdPerMillion": 0.1,
+  "cachedInputUsdPerMillion": 0.01,
+  "cacheWrite30mUsdPerMillion": 0.125,
+  "cacheWrite12hUsdPerMillion": 0.25,
+  "outputUsdPerMillion": 0.5
+}

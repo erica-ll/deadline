@@ -1,2 +1,7 @@
 node_modules/
 dist/
+
+# Local API credentials and environment overrides
+.env
+.env.*
+!.env.example

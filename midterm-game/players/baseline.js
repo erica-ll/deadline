@@ -1,4 +1,4 @@
-const hasAction = (observation, action) => observation.history.some((entry) => entry.action === action);
+const hasAction = (observation, action) => observation.history.some((entry) => entry.action === action && entry.valid !== false);
 
 // A deterministic evidence-first investigator. It infers its next command from
 // visible facts and prior responses; the engine is the only legality oracle.
@@ -10,15 +10,20 @@ export function chooseBaselineAction(observation) {
 
   if (observation.interviewee) {
     const person = observation.interviewee;
+    if ((person === "Baxter" || person === "Dunbar") && !done(`search ${person}`)) return `search ${person}`;
     if ((person === "Baxter" || person === "Dunbar") && !done(`ask ${person} about concert`)) return `ask ${person} about concert`;
-    if (person === "Dunbar" && !evidence.has("LoBlo")) return "search Dunbar";
+    if (person === "Mrs. Robner" && !done("search Mrs. Robner")) return "search Mrs. Robner";
     return `return ${person}`;
   }
 
-  if (!done("ask Baxter about concert") || !done("ask Dunbar about concert")) {
-    const person = done("ask Baxter about concert") ? "Dunbar" : "Baxter";
+  const timelineTasks = [
+    ["Baxter", "search Baxter"], ["Baxter", "ask Baxter about concert"],
+    ["Dunbar", "search Dunbar"], ["Dunbar", "ask Dunbar about concert"],
+  ];
+  const nextTimelineTask = timelineTasks.find(([, action]) => !done(action));
+  if (nextTimelineTask) {
+    const [person] = nextTimelineTask;
     if (room !== "living room") return "go to living room";
-    if (!done(`interview privately ${person}`)) return `interview privately ${person}`;
     return `interview privately ${person}`;
   }
   if (!evidence.has("LoBlo")) {

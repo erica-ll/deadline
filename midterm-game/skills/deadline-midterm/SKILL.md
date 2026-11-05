@@ -32,8 +32,9 @@ characters, endings, clues, or changed conditions on your own.
   to a human player, model player, baseline, or playtest console.
 - Invalid actions return a brief reason and leave game state and successful
   action count unchanged. Count submitted calls separately; cap successful
-  actions at 30, model calls at a configurable 60 by default, and each model
-  request at a configurable 60 seconds by default.
+  actions at 75, model calls at a configurable 100 by default, and each model
+  request at a configurable 60 seconds by default. The current project
+  instructions and evaluation plan are authoritative if limits change.
 - Implement the four specified rooms, four suspects, exact command forms,
   clue dependencies, interviews, evidence confrontations, accusation choices,
   and endings from the action dictionary. The complete joint accusation needs
@@ -46,9 +47,14 @@ characters, endings, clues, or changed conditions on your own.
   rejected guesses so a player can infer from feedback. Do not return hidden
   truth, evaluator state, source files, or answer-key fields to a player.
 - Keep model-player code separate from engine code. The model may submit only
-  a guessed action based on the player observation, action-word heads, and
-  visible feedback from its previous attempt. The engine validates it. No
-  file, shell, or evaluator tools, and no complete legal-action list.
+  a guessed action based on the engine observation and action-word heads. Use
+  the engine observation's ordered history of submitted commands and their
+  responses as the model's sole memory; mark accepted and rejected entries.
+  S2/S3 setup replay must be visible in that history. Rejected commands do
+  not change investigation facts or successful-action counts, but their
+  feedback must be retained in the engine history. Do not send a separate
+  transcript. The engine validates every action. No file, shell, evaluator
+  tools, or complete legal-action list.
 - Use the same observation, feedback, and engine validation for the
   deterministic baseline; it must not inspect `legal_actions()`.
 - Write all narrative anew. Credit the source game; do not copy its code,

@@ -1,76 +1,98 @@
 # Evaluation record
 
-## Declared deterministic suite
+## Frozen setup
 
-Suite `robner-midterm-v1` was fixed on 2026-11-02 before any model prompt
-tuning. The game is deterministic; the seeds identify repeatable trials and do
-not change the case. Both players use the same engine and observations,
-including currently available action-word heads only. They infer targets and
-submit complete commands, and the engine reports whether each attempt is
-valid.
+The scored suite is `robner-checkpoints-v2`, with six paired trials and game
+version `1.8.0`. The model configuration was frozen before the missing trial:
+OpenAI `gpt-6-luna`; config ID `robner-checkpoints-v2-config-1`; prompt ID
+`robner-action-heads-v6-rejection-history`; context protocol
+`engine-observation-history-v3`; 75 successful actions; 100 model calls; and a
+60-second request timeout. The npm package version (`1.0.0`) is separate from
+the game version. The five earlier 1.8.0 model traces were checked against the
+current engine and match this suite, configuration, prompt, context protocol,
+and limits. They share run ID `2026-11-05T01-19-28-818Z-270e1159`. The missing
+S3-T2/3302 trial was then run with the same settings and saved under its own
+run ID. No rules, prompt, model configuration, or limits changed between
+scored model trials.
 
-| Case | Seed | Intended check | Status |
-| --- | ---: | --- | --- |
-| Full evidence path | 11 | Establish source-mapped lab, possession, private account, Focus-paper, and note-impression evidence before the joint accusation | Baseline run recorded; model trial not run |
-| Repeated full evidence path | 23 | Repeat the same deterministic case to expose action selection variance | Not run |
-| Held-out repeat | 47 | Keep this seed out of prompt iteration and run after the first two cases | Not run |
+The schedule is S1-T1/1101, S2-T1/2201, S3-T1/3301, S1-T2/1102,
+S2-T2/2202, and S3-T2/3302. S1 starts fresh. S2 starts after the 17-action
+Library investigation. S3 starts after the 24-action interview and
+Kitchen/Garden investigation; it contains both concert ticket stubs and
+accounts, the murder timeline, the Garden chemical, and both medicines.
+Bootstrap actions are replayed through the engine, shown in observation
+history, and count against the 75-action episode limit. They do not count as
+model calls. Full checkpoint definitions and expected absent evidence are in
+[`CHECKPOINT_IMPLEMENTATION_PROMPT.md`](CHECKPOINT_IMPLEMENTATION_PROMPT.md).
 
-These seeds do not create new story situations. The case has one approved
-opening, so this is a narrow repeatability suite, not evidence that the model
-generalizes across different cases. The initial declaration should be expanded
-only with Erica's approval if more game situations are desired.
+Both players use player-visible observations and submit guesses through the
+same engine validator. Neither gets `legal_actions()`, hidden state, future
+paths, or evaluator data. The baseline is a deterministic evidence-first
+priority policy, so its successful route is scripted; its completions are a
+comparison point, not evidence that a person or model independently inferred
+the clues.
 
-## Implemented baseline
+## Current results: game 1.8.0
 
-The baseline is a deterministic evidence-first policy, not a random mover. It
-prioritizes private concert interviews and Dunbar's medicine, then Baxter's
-motive, the china count, ladder holes, fragment analysis, and the final
-comparison. It chooses from the observation and history alone; the engine
-validates each submitted guess. The comparison should report invalid moves,
-calls, latency, tokens, and failures rather than only the ending.
+| Trial | Seed / checkpoint | Model trace and result | Model calls (accepted / rejected) | Mean latency; input / output tokens | Baseline trace and result |
+| --- | --- | --- | ---: | --- | --- |
+| S1-T1 | 1101 / S1 fresh | [Trace](traces/evaluation/2026-11-05T01-19-28-818Z-270e1159-S1-T1-1101.json) — `model_call_limit` | 100 (65 / 35) | 2,529 ms; 327,314 / 11,885 | [Trace](traces/evaluation-baseline/2026-11-05T01-57-20-609Z-8810f56a-S1-T1-1101.json) — `complete_solution`, 26/26 accepted |
+| S2-T1 | 2201 / S2 Library | [Trace](traces/evaluation/2026-11-05T01-19-28-818Z-270e1159-S2-T1-2201.json) — `incomplete_dunbar_case` | 91 (55 / 36) | 2,807 ms; 352,795 / 14,943 | [Trace](traces/evaluation-baseline/2026-11-05T01-57-20-609Z-8810f56a-S2-T1-2201.json) — `complete_solution`, 20/20 accepted |
+| S3-T1 | 3301 / S3 interviews + Garden | [Trace](traces/evaluation/2026-11-05T01-19-28-818Z-270e1159-S3-T1-3301.json) — `episode_limit` | 84 (51 / 33) | 3,256 ms; 325,098 / 15,895 | [Trace](traces/evaluation-baseline/2026-11-05T01-57-20-609Z-8810f56a-S3-T1-3301.json) — `complete_solution`, 12/12 accepted |
+| S1-T2 | 1102 / S1 fresh | [Trace](traces/evaluation/2026-11-05T01-19-28-818Z-270e1159-S1-T2-1102.json) — `model_call_limit` | 100 (61 / 39) | 2,386 ms; 326,402 / 11,140 | [Trace](traces/evaluation-baseline/2026-11-05T01-57-20-609Z-8810f56a-S1-T2-1102.json) — `complete_solution`, 26/26 accepted |
+| S2-T2 | 2202 / S2 Library | [Trace](traces/evaluation/2026-11-05T01-19-28-818Z-270e1159-S2-T2-2202.json) — `episode_limit` | 89 (58 / 31) | 3,456 ms; 338,701 / 18,191 | [Trace](traces/evaluation-baseline/2026-11-05T01-57-20-609Z-8810f56a-S2-T2-2202.json) — `complete_solution`, 20/20 accepted |
+| S3-T2 | 3302 / S3 interviews + Garden | [Trace](traces/evaluation/2026-11-05T02-10-25-808Z-ac5d2d84-S3-T2-3302.json) — `episode_limit`; accused Dunbar, then continued investigating | 76 (51 / 25) | 3,646 ms; 282,496 / 17,970 | [Trace](traces/evaluation-baseline/2026-11-05T01-57-20-609Z-8810f56a-S3-T2-3302.json) — `complete_solution`, 12/12 accepted |
 
-## Results and traces
+All six current model traces have terminal outcomes and the full schedule is
+recorded. The model did not solve any trial: two ended at the 100-call limit,
+two at the 75-successful-action limit, one closed an incomplete Dunbar case,
+and one S3 trial reached the action limit after an accusation and continued
+investigating. The baseline solved all six with no rejected actions. Its route
+is the fixed evidence-first policy in `players/baseline.js`, not an independent
+clue-inference result. The baseline policy uses observations/history and the
+engine’s `step()` validator; it does not call `legal_actions()` or read hidden
+state.
 
-- Baseline, seed 1: `complete_solution`, 23 successful actions, 0 model calls.
-  See [`baseline-seed-1-1793664458403.json`](traces/baseline-seed-1-1793664458403.json).
-- Baseline, seed 11: `complete_solution`, 23 successful actions, 0 model calls.
-  See [`baseline-seed-11-1793664458511.json`](traces/baseline-seed-11-1793664458511.json).
-- On 2026-11-02, `npm test` passed all 21 deterministic tests and
-  `npm run build` completed. The source-to-bounded route comparison is in
-  [`SOURCE_FLOW_AUDIT.md`](SOURCE_FLOW_AUDIT.md).
-- On 2026-11-03, fixes from the independent review were verified with
-  `npm test`: all 38 deterministic tests passed. Coverage now includes the
-  private-interview letter-entry boundary, neutral safe opening, final-call
-  accusation termination, the then-configured 30th-action accusation
-  boundary, and the evidence-supported Baxter-only acquittal branch.
-  Representative invalid prerequisite actions are also checked for state
-  preservation.
-- On 2026-11-04, Erica raised the successful-action limit from 30 to 50.
-  The engine and player runner now use 50 by default, and the boundary
-  regression test exercises an accusation as action 50.
-- No live provider call has been made; no live-model success, latency, token
-  count, or dated cost is claimed.
-- No human playtest has been conducted in this implementation session.
+The model traces recorded usage for every request. The S3-T2 result includes
+76 latency and usage records. The evaluation report is generated from the
+current-version trace set by `npm run report:evaluation`; older versions are
+filtered out. A dated official pricing snapshot is
+[`evaluation-pricing-2026-11-05.json`](evaluation-pricing-2026-11-05.json).
+OpenAI's published `gpt-6-luna` rates are $0.10/1M uncached input,
+$0.01/1M cached input, $0.50/1M output, and $0.125/1M or $0.25/1M for
+30-minute or 12-hour cache writes ([official pricing](https://developers.openai.com/api/docs/pricing),
+[model page](https://developers.openai.com/api/docs/models/gpt-6-luna)). The
+traces record cache-write token counts but not the TTL split, so the report
+estimates a range using those official low/high write rates. It does not infer
+the missing TTL. The report also identifies any model calls without a saved
+usage record. Pricing is an estimate from returned token counts, not a provider
+invoice.
 
-## Observed regression
+## Historical / diagnostic runs (not part of current comparison)
 
-During development, a direct reproduction showed that the legal public action
-`search Dunbar` incorrectly returned her private LoBlo inventory. The
-regression test `observed regression: public suspect search must refuse
-without revealing inventory` failed with the message revealing LoBlo. The
-engine was changed to return a public refusal without inventory, and the same
-test now passes. During the source audit, the Mrs. Robner medicine comparison
-was offered in the Garden but rejected by the engine. Its legality condition
-was added and the regression test now passes. A separate focused check found
-submitted-call exhaustion was not terminal after invalid actions; the limit
-check now covers that path.
+- The six-trial model run with run ID
+  `2026-11-04T23-47-12-233Z-bbe1da82` used game `1.6.0`, a 50-action cap,
+  and an earlier setup that still included alibi bootstrap queries. These
+  traces are retained under `traces/evaluation/` and are not pooled with the
+  1.8.0 results.
+- Earlier 1.0.0 and 1.1.0 baseline runs remain under
+  `traces/evaluation-baseline/`; they are not the current paired baselines.
+- Two early single-trial model diagnostics under older prompt/context/game
+  settings are also retained. They are not scored suite trials.
+- No human playtest observation is claimed here.
 
-## Limits and next evidence
+## Reproduction and limits
 
-The model API runner defaults to 60 calls per episode and 60 seconds per call;
-the episode itself is capped at 50 successful actions. `MAX_MODEL_CALLS` and
-`MODEL_TIMEOUT_MS` change the runner defaults. Provider usage metadata is
-stored in traces when returned; no cost is estimated until a live provider,
-model, token usage, and dated price source are known. The single-case suite,
-missing live trials, missing independent review, and missing peer playtest
-notes are limitations, not passing evidence.
+Run `npm test` and `npm run build` for deterministic verification. Run
+`npm run evaluate:baseline` to produce a new uniquely named six-trace baseline
+batch. For model evaluation, `npm run evaluate:model` opens the watch page;
+the user starts trials explicitly. The missing S3-T2 trial in this record was
+run once through `TrialRunner` with the frozen settings; no retry or
+substitution was made. Raw traces are append-only records and should not be
+edited after creation.
+
+The deterministic policy’s route is scripted and can converge rapidly; it is
+not an independent player. Model results are one stochastic run per scheduled
+seed, with invalid guesses preserved and counted against the call budget.
+These results do not establish how human players perform. The game version is
+part of every trace; results from other versions are historical only.

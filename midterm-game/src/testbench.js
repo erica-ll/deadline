@@ -35,7 +35,7 @@ function loadStage(selected) {
   stage = selected;
   presetError = "";
   lastResult = null;
-  game = new DeadlineGame({ maxActions: stage.maxActions ?? 30, maxCalls: 60 });
+  game = new DeadlineGame({ maxActions: stage.maxActions ?? 75, maxCalls: 100 });
   game.reset(42);
   for (const action of stage.actions ?? []) {
     const result = game.step("detective", action);
@@ -47,7 +47,7 @@ function loadStage(selected) {
   }
   if (stage.baseline && !presetError) {
     let turns = 0;
-    while (["ongoing", "choice"].includes(game.outcome().status) && turns < 45) {
+    while (["ongoing", "choice"].includes(game.outcome().status) && turns < game.limits.maxActions) {
       const action = chooseBaselineAction(game.observe("detective"));
       const result = game.step("detective", action);
       lastResult = { ...result, action };
@@ -57,7 +57,7 @@ function loadStage(selected) {
         break;
       }
     }
-    if (!presetError && ["ongoing", "choice"].includes(game.outcome().status)) presetError = "The baseline did not reach a terminal outcome within 45 actions.";
+    if (!presetError && ["ongoing", "choice"].includes(game.outcome().status)) presetError = `The baseline did not reach a terminal outcome within ${game.limits.maxActions} actions.`;
   }
   render();
 }
@@ -89,7 +89,7 @@ function render() {
           ${lastResult ? `<article class="tb-result ${lastResult.valid ? "" : "invalid"}"><div><b>${lastResult.valid ? "Accepted" : "Rejected"}</b><code>${escapeHtml(lastResult.action)}</code></div><p>${escapeHtml(lastResult.message)}</p></article>` : ""}
           <section class="tb-outcome"><h3>Current outcome</h3><pre>${json(outcome)}</pre></section>
           <section class="tb-legal"><h3>Legal actions right now (${legal.length})</h3>${legal.length ? `<div class="tb-action-list">${legal.map((action) => `<button data-command="${escapeHtml(action)}">${escapeHtml(action)}</button>`).join("")}</div>` : `<p>No commands are currently legal.</p>`}</section>
-          <section class="tb-history"><h3>Action history (${observation.history.length})</h3>${observation.history.length ? `<ol>${observation.history.map((entry) => `<li><b>${escapeHtml(entry.room)}</b><code>${escapeHtml(entry.action)}</code><span>${escapeHtml(entry.message)}</span></li>`).join("")}</ol>` : `<p>No actions submitted in this stage.</p>`}</section>
+          <section class="tb-history"><h3>Attempt history (${observation.history.length})</h3>${observation.history.length ? `<ol>${observation.history.map((entry) => `<li><b>${escapeHtml(entry.room)}</b><code>${escapeHtml(entry.action)}${entry.valid === false ? " · Rejected" : ""}</code><span>${escapeHtml(entry.message)}</span></li>`).join("")}</ol>` : `<p>No actions submitted in this stage.</p>`}</section>
         </section>
         <aside class="tb-inspector-panel">
           <section><h2>Player observation</h2><p>What a game player is allowed to receive.</p><pre>${json(observation)}</pre></section>

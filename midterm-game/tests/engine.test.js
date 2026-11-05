@@ -6,17 +6,22 @@ import { chooseModelAction } from "../players/model-player.js";
 
 test("reset, observations, and legal actions preserve role boundaries", () => {
   const game = new DeadlineGame();
+  assert.equal(game.limits.maxActions, 75);
+  assert.equal(game.limits.maxCalls, 100);
   const observation = game.reset(123);
   assert.equal(observation.room, "living room");
   assert.equal(observation.successfulActions, 0);
   assert.ok(Array.isArray(observation.actionGuide));
   assert.ok(observation.actionGuide.some(({ action, description }) => action === "search" && /private interview/.test(description) && !/public searches are refused/i.test(description)));
   assert.equal(observation.actionGuide.find(({ action }) => action === "ask").template, "ask [person] about [topic]");
-  for (const obviousAction of ["read", "open", "count", "clean"]) assert.equal(observation.actionGuide.some(({ action }) => action === obviousAction), false);
+  for (const obviousAction of ["read", "open", "count", "clean"]) {
+    assert.equal(observation.actionGuide.some(({ action, description }) => action === obviousAction && !description), true);
+  }
   assert.ok(observation.actionGuide.some(({ action }) => action === "compare"));
   assert.equal(observation.actionGuide.find(({ action }) => action === "compare").template, "compare [A] with [B]");
   assert.ok(observation.actionGuide.every(({ description }) => !/Baxter|Dunbar|killed|murder|guilty|culprit/i.test(description)));
   assert.deepEqual(observation.evidence, []);
+  assert.deepEqual(observation.rooms, ["living room", "library", "kitchen", "garden"]);
   assert.ok(observation.actionWords.includes("go to"));
   assert.ok(observation.actionWords.includes("inspect"));
   assert.equal(observation.actionWords.includes("go to library"), false);
@@ -31,6 +36,150 @@ test("reset, observations, and legal actions preserve role boundaries", () => {
   assert.ok(legal.includes("accuse Baxter and Dunbar"));
   assert.ok(observation.actionWords.includes("accuse"));
   assert.throws(() => game.observe("evaluator"), /Unknown player role/);
+});
+
+test("suspect commands accept the approved full-name and title aliases", () => {
+  const aliases = [
+    ["Baxter", ["Baxter", "Mr. Baxter"]],
+    ["Dunbar", ["Dunbar", "Ms. Dunbar", "Ms. S. Dunbar", "S. Dunbar"]],
+    ["George", ["George", "George Robner"]],
+    ["Mrs. Robner", ["Mrs. Robner", "Mrs. Leslie Phillips Robner", "Leslie Phillips Robner", "Leslie Robner"]],
+  ];
+  for (const [canonical, names] of aliases) {
+    for (const name of names) {
+      const game = new DeadlineGame();
+      assert.equal(game.step("detective", `inspect ${name}`).valid, true, `inspect ${name}`);
+      assert.equal(game.step("detective", `interview privately ${name}`).valid, true, `interview ${name}`);
+      assert.equal(game.observe("detective").interviewee, canonical);
+      assert.equal(game.step("detective", `ask ${name} about alibi`).valid, true, `ask ${name}`);
+      assert.equal(game.step("detective", `return ${name}`).valid, true, `return ${name}`);
+
+      const accusation = new DeadlineGame().step("detective", `accuse ${name}`);
+      assert.equal(accusation.valid, true, `accuse ${name}`);
+      assert.deepEqual(accusation.observation.accusations, [canonical]);
+    }
+  }
+
+  const joint = new DeadlineGame().step("detective", "accuse Mr. Baxter and Ms. S. Dunbar");
+  assert.equal(joint.valid, true);
+  assert.deepEqual(joint.observation.accusations, ["Baxter", "Dunbar"]);
+
+  const question = new DeadlineGame();
+  question.step("detective", "interview privately Mr. Baxter");
+  assert.equal(question.step("detective", "ask Baxter about Leslie Robner").valid, true);
+});
+
+test("show accepts full-name suspect aliases in either supported word order", () => {
+  const game = new DeadlineGame();
+  for (const action of ["go to library", "inspect bookcase", "search bookcase", "open safe", "read new will", "go to living room"]) {
+    assert.equal(game.step("detective", action).valid, true, action);
+  }
+  assert.equal(game.step("detective", "show Mrs. Leslie Phillips Robner new will").valid, true);
+  assert.equal(game.step("detective", "show new will to Leslie Robner").valid, true);
+});
+
+test("room names are visible and unsupported room guesses receive the room list", () => {
+  const game = new DeadlineGame();
+  const result = game.step("detective", "go to dining room");
+  assert.equal(result.valid, false);
+  assert.match(result.message, /living room, library, kitchen, garden/);
+  assert.deepEqual(result.observation.rooms, ["living room", "library", "kitchen", "garden"]);
+  assert.equal(result.observation.room, "living room");
+});
+
+test("Garden fragment inspection is unavailable until search holes finds it", () => {
+  const game = new DeadlineGame();
+  game.step("detective", "go to garden");
+  assert.doesNotMatch(JSON.stringify(game.observe("detective")), /porcelain fragment|inspect fragment|inspect porcelain/i);
+  assert.equal(game.legal_actions("detective").includes("inspect fragment"), false);
+  const premature = game.step("detective", "inspect fragment");
+  assert.equal(premature.valid, false);
+  assert.match(premature.message, /Find the porcelain fragment in the Garden first/);
+  const found = game.step("detective", "search holes");
+  assert.equal(found.valid, true);
+  assert.equal(game.legal_actions("detective").includes("inspect fragment"), true);
+  assert.equal(game.step("detective", "inspect porcelain fragment").valid, true);
+});
+
+test("every discovered evidence item can be inspected from the evidence record", () => {
+  const game = new DeadlineGame();
+  const discoveryActions = [
+    "go to library", "inspect teacup", "inspect saucer", "inspect Ebullion",
+    "inspect bookcase", "search bookcase", "open safe", "read Focus papers", "read new will",
+    "go to living room", "inspect letter", "read letter",
+    "interview privately Baxter", "search Baxter", "return Baxter",
+    "interview privately Dunbar", "search Dunbar", "return Dunbar",
+    "interview privately Mrs. Robner", "search Mrs. Robner", "inspect Allergone", "ask Mrs. Robner about Allergone", "return Mrs. Robner",
+    "go to garden", "search holes", "clean fragment", "analyze fragment",
+  ];
+  for (const action of discoveryActions) assert.equal(game.step("detective", action).valid, true, action);
+  const evidenceTargets = ["teacup", "saucer", "Ebullion", "Focus papers", "new will", "letter", "LoBlo", "Allergone", "concert ticket", "fragment", "new chemical"];
+  for (const target of evidenceTargets) {
+    const action = `inspect ${target}`;
+    assert.equal(game.legal_actions("detective").includes(action), true, action);
+    const result = game.step("detective", action);
+    assert.equal(result.valid, true, action);
+    assert.ok(result.message.length > 0, action);
+  }
+});
+
+test("Mrs. Robner explains what Allergone is for", () => {
+  const game = new DeadlineGame();
+  for (const action of ["interview privately Mrs. Robner", "search Mrs. Robner", "ask Mrs. Robner about Allergone"]) {
+    assert.equal(game.step("detective", action).valid, true, action);
+  }
+  assert.match(game.observe("detective").history.at(-1).message, /medicine for my allergies/i);
+});
+
+test("Dunbar's LoBlo responses fit a private search of her belongings", () => {
+  const game = new DeadlineGame();
+  for (const action of [
+    "interview privately Dunbar",
+    "search Dunbar",
+    "ask Dunbar about LoBlo",
+    "show Dunbar LoBlo",
+  ]) {
+    const result = game.step("detective", action);
+    assert.equal(result.valid, true, action);
+    if (action.startsWith("ask ") || action.startsWith("show ")) {
+      assert.match(result.message, /among my (?:things|belongings)/i);
+      assert.doesNotMatch(result.message, /bathroom/i);
+    }
+  }
+});
+
+test("articles are optional in commands and question topics", () => {
+  const game = new DeadlineGame();
+  assert.equal(game.step("detective", "go to the library").valid, true);
+  assert.equal(game.step("detective", "inspect the teacup").valid, true);
+  assert.equal(game.step("detective", "inspect a Ebullion").valid, true);
+
+  const questions = new DeadlineGame();
+  for (const person of ["Baxter", "Dunbar", "George", "Mrs. Robner"]) {
+    for (const topic of ["Marshall", "Robner", "Marshall Robner.", "Mr. Robner"]) {
+      const result = questions.step("detective", `ask ${person} about ${topic}`);
+      assert.equal(result.valid, true, `${person}: ${topic}`);
+    }
+  }
+  const will = new DeadlineGame();
+  for (const action of ["go to library", "inspect desk", "search desk", "inspect notepad", "shade notepad", "inspect bookcase", "search bookcase", "open safe", "read the new will", "go to living room", "interview privately Mrs. Robner", "show Mrs. Robner the new will"]) {
+    assert.equal(will.step("detective", action).valid, true, action);
+  }
+  assert.match(will.observe("detective").history.at(-1).message, /prepared a new will/i);
+});
+
+test("private interviews do not suggest alibis; alibi phrasing is accepted but refused", () => {
+  for (const [person, pronoun] of [["Baxter", "his"], ["Dunbar", "her"], ["George", "his"], ["Mrs. Robner", "her"]]) {
+    const game = new DeadlineGame();
+    const interview = game.step("detective", `interview privately ${person}`);
+    assert.equal(interview.valid, true);
+    assert.doesNotMatch(interview.message, /start by asking about their alibi/i);
+    for (const phrase of ["alibi", "the alibi", `${pronoun} alibi`]) {
+      const result = game.step("detective", `ask ${person} about ${phrase}`);
+      assert.equal(result.valid, true, `${person}: ${phrase}`);
+      assert.match(result.message, /can't help you with that/i);
+    }
+  }
 });
 
 test("legal action changes scene and an illegal action changes no game facts", () => {
@@ -173,9 +322,13 @@ test("representative invalid prerequisites leave investigation state unchanged",
     const invalid = game.step("detective", action);
     assert.equal(invalid.valid, false, action);
     const after = invalid.observation;
-    for (const key of ["room", "interviewee", "letterDelivered", "pendingMessages", "evidence", "accusations", "successfulActions", "history"]) {
+    for (const key of ["room", "interviewee", "letterDelivered", "pendingMessages", "evidence", "accusations", "successfulActions"]) {
       assert.deepEqual(after[key], before[key], `${action} changed ${key}`);
     }
+    assert.equal(after.history.length, before.history.length + 1, `${action} should be remembered`);
+    assert.equal(after.history.at(-1).action, action);
+    assert.equal(after.history.at(-1).message, invalid.message);
+    assert.equal(after.history.at(-1).valid, false);
   }
 });
 
@@ -377,35 +530,36 @@ test("the sugar bowl is not an interactive evidence action in either room", () =
   assert.equal(game.legal_actions("detective").includes("analyze sugar bowl"), false);
 });
 
-test("private concert accounts expose the hired-car versus ride-home mismatch", () => {
+test("ticket searches reveal adjacent seats and accounts establish the murder timeline", () => {
   const game = new DeadlineGame();
   game.step("detective", "interview privately Baxter");
+  const baxterTicket = game.step("detective", "search Baxter").message;
+  assert.match(baxterTicket, /July 7, 1982, for 8 p\.m\./);
+  assert.match(baxterTicket, /matches.*death/i);
   const baxter = game.step("detective", "ask Baxter about concert").message;
   game.step("detective", "return Baxter");
   game.step("detective", "interview privately Dunbar");
+  const dunbarTicket = game.step("detective", "search Dunbar").message;
+  assert.match(dunbarTicket, /beside Baxter's Seat 7/i);
   const dunbar = game.step("detective", "ask Dunbar about concert").message;
-  assert.match(baxter, /hired a car/);
-  assert.doesNotMatch(baxter, /ticket stub/i);
-  assert.match(dunbar, /he took me home/);
-  assert.match(dunbar, /Then he took me home/);
+  assert.equal(game.state.clues.murder_timeline, true);
+  assert.match(baxter, /Dunbar was with me.*left at intermission in a hired car/);
+  assert.match(dunbar, /he took me home after it ended/);
+  assert.ok(game.observe("detective").evidence.includes("concert ticket"));
 });
 
-test("private alibi topic reaches the same bounded source-account route as concert", () => {
+test("alibi refusal cannot establish a concert account or murder timeline", () => {
   const game = new DeadlineGame();
-  const actions = [
-    "interview privately Baxter", "ask Baxter about alibi", "return Baxter",
-    "interview privately Dunbar", "ask Dunbar about alibi", "search Dunbar", "return Dunbar",
-    "go to library", "inspect notepad", "shade notepad", "inspect bookcase", "search bookcase", "open safe", "read Focus papers",
-    "go to kitchen", "count china", "go to garden", "inspect holes", "search holes", "clean fragment", "analyze fragment", "compare new chemical with LoBlo", "go to living room", "accuse Baxter and Dunbar",
-  ];
-  for (const action of actions) assert.equal(game.step("detective", action).valid, true, action);
-  assert.equal(game.outcome().status, "choice");
-  assert.equal(game.step("detective", "close the case").valid, true);
-  assert.equal(game.outcome().reason, "complete_solution");
+  game.step("detective", "interview privately Baxter");
+  const refusal = game.step("detective", "ask Baxter about alibi");
+  assert.equal(refusal.valid, true);
+  assert.match(refusal.message, /can't help you with that/i);
+  assert.equal(game.state.clues.baxter_concert_account, undefined);
+  assert.equal(game.state.clues.murder_timeline, undefined);
 });
 
 test("interview replies distinguish quoted speech from narration and cover every public topic", () => {
-  const game = new DeadlineGame({ maxActions: 100 });
+  const game = new DeadlineGame({ maxActions: 75 });
   const questions = game.legal_actions("detective").filter((action) => action.startsWith("ask "));
   for (const question of questions) {
     const response = game.step("detective", question).message;
@@ -426,8 +580,8 @@ test("LoBlo lab comparison explains the interaction and its medical result", () 
   }
   const result = game.step("detective", "compare new chemical with LoBlo");
   assert.match(result.message, /Methsparin/);
-  assert.match(result.message, /displaces Ebullion from protein binding/);
-  assert.match(result.message, /death to Ebullion toxicity/);
+  assert.match(result.message, /displace Ebullion from proteins in the blood/);
+  assert.match(result.message, /combination caused fatal Ebullion toxicity/);
   assert.doesNotMatch(result.message, /not who put it in the tea/i);
 });
 
@@ -564,8 +718,8 @@ test("continue investigating preserves earlier accusations for the eventual case
 test("opening the safe without reading Focus papers does not satisfy the strong-case requirement", () => {
   const game = new DeadlineGame();
   const actions = [
-    "interview privately Baxter", "ask Baxter about concert", "return Baxter",
-    "interview privately Dunbar", "ask Dunbar about concert", "search Dunbar", "return Dunbar",
+    "interview privately Baxter", "search Baxter", "ask Baxter about concert", "return Baxter",
+    "interview privately Dunbar", "search Dunbar", "ask Dunbar about concert", "return Dunbar",
     "go to library", "inspect notepad", "shade notepad", "inspect bookcase", "search bookcase", "open safe",
     "go to garden", "search holes", "clean fragment", "analyze fragment", "compare new chemical with LoBlo", "go to living room",
     "accuse Baxter and Dunbar",
@@ -621,22 +775,22 @@ test("successful-action and submitted-call episode limits end explicitly", () =>
   assert.equal(steps.outcome().reason, "episode_limit");
   assert.equal(steps.outcome().successfulActions, 2);
 
-  const calls = new DeadlineGame({ maxActions: 50, maxCalls: 2 });
+  const calls = new DeadlineGame({ maxActions: 75, maxCalls: 2 });
   calls.step("detective", "not an action");
   calls.step("detective", "still not an action");
   assert.equal(calls.outcome().reason, "model_call_limit");
   assert.equal(calls.outcome().successfulActions, 0);
 });
 
-test("the 50th successful action accusation ends before exposing a choice", () => {
-  const game = new DeadlineGame({ maxActions: 50, maxCalls: 100 });
-  for (let i = 0; i < 49; i += 1) {
+test("the 75th successful action accusation ends before exposing a choice", () => {
+  const game = new DeadlineGame({ maxActions: 75, maxCalls: 100 });
+  for (let i = 0; i < 74; i += 1) {
     const result = game.step("detective", "ask Baxter about alibi");
     assert.equal(result.valid, true);
   }
   const accusation = game.step("detective", "accuse Baxter");
   assert.equal(accusation.valid, true);
-  assert.equal(accusation.observation.successfulActions, 50);
+  assert.equal(accusation.observation.successfulActions, 75);
   assert.deepEqual(accusation.observation.accusations, ["Baxter"]);
   assert.equal(accusation.outcome.reason, "episode_limit");
   assert.deepEqual(accusation.observation.choices, []);
@@ -646,7 +800,7 @@ test("the 50th successful action accusation ends before exposing a choice", () =
 });
 
 test("a final-call accusation ends instead of leaving an unusable choice", () => {
-  const game = new DeadlineGame({ maxActions: 50, maxCalls: 1 });
+  const game = new DeadlineGame({ maxActions: 75, maxCalls: 1 });
   const accusation = game.step("detective", "accuse Dunbar");
   assert.equal(accusation.valid, true);
   assert.deepEqual(accusation.observation.accusations, ["Dunbar"]);
@@ -656,7 +810,19 @@ test("a final-call accusation ends instead of leaving an unusable choice", () =>
   assert.deepEqual(game.legal_actions("detective"), []);
 });
 
-test("provider adapters receive observations, action words, and feedback but no command list", async () => {
+test("runner failure ends a pending accusation choice and preserves its accusation", () => {
+  const game = new DeadlineGame();
+  const accusation = game.step("detective", "accuse Dunbar");
+  assert.equal(accusation.outcome.status, "choice");
+  assert.equal(game.end_episode("model_error", "provider failed").reason, "model_error");
+  assert.equal(game.outcome().status, "terminal");
+  assert.equal(game.outcome().message, "provider failed");
+  assert.deepEqual(game.outcome().accusations, ["Dunbar"]);
+  assert.deepEqual(game.observe("detective").choices, []);
+  assert.deepEqual(game.legal_actions("detective"), []);
+});
+
+test("provider adapters receive the engine observation without a legal-command list or separate memory", async () => {
   const originalFetch = globalThis.fetch;
   const cases = [
     ["openai", (text) => ({ output: [{ content: [{ type: "output_text", text }] }] })],
@@ -670,14 +836,16 @@ test("provider adapters receive observations, action words, and feedback but no 
         requestBody = JSON.parse(options.body);
         return { ok: true, json: async () => response('{"action":"go to library"}') };
       };
-      const observation = new DeadlineGame().reset();
+      const game = new DeadlineGame();
+      game.step("detective", "go to library");
+      const observation = game.observe("detective");
       observation.choices = [
         { label: "Close the case", action: "close the case" },
         { label: "Continue investigating", action: "continue investigating" },
       ];
       const result = await chooseModelAction({
         provider, model: "example-model", apiKey: "test-key", timeoutMs: 100,
-        observation, lastFeedback: { valid: false, message: "Nothing changes." },
+        observation,
       });
       assert.equal(result.action, "go to library");
       assert.equal(JSON.stringify(requestBody).includes("answer_key"), false);
@@ -691,8 +859,32 @@ test("provider adapters receive observations, action words, and feedback but no 
       assert.ok(JSON.stringify(requestBody).includes("continue investigating"));
       assert.equal("tools" in requestBody, false);
       const submittedData = JSON.stringify(requestBody);
+      const sentInput = JSON.parse(requestBody.input || requestBody.messages?.[0]?.content);
       assert.match(submittedData, /living room/);
-      assert.match(submittedData, /Nothing changes/);
+      assert.deepEqual(sentInput.observation.rooms, ["living room", "library", "kitchen", "garden"]);
+      assert.match(sentInput.observation.caseIntroduction, /found dead in the Library/);
+      assert.deepEqual(sentInput.observation.suspects.map(({ name }) => name), ["Mr. Baxter", "Ms. S. Dunbar", "George Robner", "Mrs. Leslie Phillips Robner"]);
+      assert.match(sentInput.observation.commandProtocol, /actionWords/);
+      assert.match(sentInput.observation.commandProtocol, /not a list of valid targets/);
+      assert.equal(sentInput.observation.history[0].action, "go to library");
+      assert.ok(sentInput.observation.history[0].message);
+      assert.equal("session_history" in sentInput, false);
+      assert.equal("previous_action_feedback" in sentInput, false);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /observation\.history/);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /including checkpoint setup/);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /use it as your memory/);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /do not invent other rooms/);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /finding additional evidence and using it with evidence already discovered/);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /ultimate goal is to accuse/);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /inspect items listed in observation\.evidence/);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /observation\.caseIntroduction/);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /observation\.suspects/);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /observation\.commandProtocol/);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /valid=false for a rejected command/);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /do not repeat the same unsupported command/);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /simplest direct name or keyword/);
+      assert.match(requestBody.instructions || requestBody.system || requestBody.system_instruction, /Leave out descriptive filler and container phrases/);
+      assert.doesNotMatch(submittedData, /session_history|previous_action_feedback/);
     }
   } finally { globalThis.fetch = originalFetch; }
 });

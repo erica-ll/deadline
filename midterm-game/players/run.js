@@ -1,9 +1,37 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DeadlineGame } from "../src/engine.js";
 import { chooseBaselineAction } from "./baseline.js";
 import { chooseModelAction } from "./model-player.js";
+
+async function loadLocalEnv() {
+  let contents;
+  try {
+    contents = await readFile(new URL("../.env", import.meta.url), "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+
+  for (const line of contents.replace(/^\uFEFF/, "").split(/\r?\n/)) {
+    const entry = line.trim().replace(/^export\s+/, "");
+    if (!entry || entry.startsWith("#")) continue;
+    const match = entry.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) continue;
+
+    let value = match[2].trim();
+    if ((value.startsWith("\"") && value.endsWith("\"")) ||
+        (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    } else {
+      value = value.replace(/\s+#.*$/, "").trim();
+    }
+    if (process.env[match[1]] === undefined) process.env[match[1]] = value;
+  }
+}
+
+await loadLocalEnv();
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(name);
@@ -11,15 +39,13 @@ const arg = (name, fallback) => {
 };
 const provider = arg("--provider", "baseline").toLowerCase();
 const seed = Number(arg("--seed", "1"));
-const maxCalls = Number(process.env.MAX_MODEL_CALLS || 60);
+const maxCalls = Number(process.env.MAX_MODEL_CALLS || 200);
 const timeoutMs = Number(process.env.MODEL_TIMEOUT_MS || 60_000);
-const maxActions = 50;
+const maxActions = 100;
 const game = new DeadlineGame({ maxActions, maxCalls });
 game.reset(seed);
 const trace = { seed, provider, model: provider === "baseline" ? "fixed-evidence-policy" : process.env[`${provider.toUpperCase()}_MODEL`] || null, maxActions, maxCalls, timeoutMs, calls: [], startedAt: new Date().toISOString() };
 let modelCalls = 0;
-let lastFeedback = null;
-
 while (game.outcome().status === "ongoing" || game.outcome().status === "choice") {
   const observation = game.observe("detective");
   let selected;
@@ -31,21 +57,20 @@ while (game.outcome().status === "ongoing" || game.outcome().status === "choice"
     try {
       selected = await chooseModelAction({
         provider, model: process.env[`${provider.toUpperCase()}_MODEL`],
-        apiKey: process.env[`${provider.toUpperCase()}_API_KEY`], observation, lastFeedback,
+        apiKey: process.env[`${provider.toUpperCase()}_API_KEY`], observation,
         timeoutMs, baseUrl: process.env[`${provider.toUpperCase()}_BASE_URL`],
       });
       selected.source = "model";
     } catch (error) {
       const reason = error.code === "timeout_limit" ? "timeout_limit" : "model_error";
       game.end_episode(reason, error.message);
-      trace.calls.push({ observation, previousActionFeedback: lastFeedback, source: "model", error: error.message, latencyMs: null });
+      trace.calls.push({ observation, source: "model", error: error.message, latencyMs: null });
       trace.error = error.message;
       break;
     }
   }
   const result = game.step("detective", selected.action);
-  trace.calls.push({ observation, previousActionFeedback: lastFeedback, action: selected.action, rawOutput: selected.raw || null, source: selected.source, valid: result.valid, message: result.message, latencyMs: selected.latencyMs, usage: selected.usage || null, outcome: result.outcome });
-  lastFeedback = { action: selected.action, valid: result.valid, message: result.message };
+  trace.calls.push({ observation, action: selected.action, rawOutput: selected.raw || null, source: selected.source, valid: result.valid, message: result.message, latencyMs: selected.latencyMs, usage: selected.usage || null, outcome: result.outcome });
   if (provider === "baseline" && !result.valid) {
     game.end_episode("baseline_error", `Baseline submitted an illegal action: ${selected.action}`);
     break;

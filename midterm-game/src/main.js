@@ -1,16 +1,9 @@
-import { DeadlineGame, ROOMS } from "./engine.js";
+import { CASE_INTRODUCTION, DeadlineGame, ROOMS, SUSPECT_BRIEFS } from "./engine.js";
 import "./style.css";
 
 const game = new DeadlineGame();
 const app = document.querySelector("#app");
 const ui = { screen: "briefing", feedback: "", valid: null, command: "", actionWord: "go to", remainder: "", askPerson: "", askTopic: "", personTarget: "", showPerson: "", showEvidence: "", compareA: "", compareB: "", dictionaryOpen: true };
-
-const suspects = [
-  { name: "Mr. Baxter", role: "Business partner", detail: "Robner's longtime business partner." },
-  { name: "Ms. S. Dunbar", role: "Secretary", detail: "Robner's secretary; she has worked for him for about ten years." },
-  { name: "George Robner", role: "Son", detail: "Robner's son." },
-  { name: "Mrs. Leslie Phillips Robner", role: "Wife", detail: "Robner's wife." },
-];
 
 const trueStory = [
   ["Why Baxter acted", "Marshall Robner had built his life around Robner Corp. Baxter had diverted money from Focus Corporation, a Robner Corp. subsidiary, and feared that Robner would expose the scandal. Robner's notepad carried a warning about Baxter and the company. Baxter also wanted to advance his position through a proposed sale of the company, while concealing the extent of his wrongdoing."],
@@ -29,7 +22,7 @@ function renderBriefing() {
       <section class="briefing window-intro" aria-labelledby="window-title">
         <div class="briefing-content">
           <h1 id="window-title">The Robner Case</h1>
-          <p class="opening-copy">Marshall Robner was found dead in the Library. His death appears to be suicide, but you, the investigating inspector, are not convinced. You will examine the scene and question the household. Robner had been taking a medicine called Ebullion.</p>
+          <p class="opening-copy">${escapeHtml(CASE_INTRODUCTION)}</p>
           <button class="primary-button" data-next="suspects">Meet the suspects <span aria-hidden="true">→</span></button>
         </div>
       </section>
@@ -44,7 +37,7 @@ function renderSuspects() {
         <div class="briefing-content suspect-briefing">
           <h1 id="window-title">The suspects</h1>
           <p class="intro-copy">The residents have been asked to remain together while you check the circumstances of Robner's death. A uniformed patrol officer is supervising the group.</p>
-          <div class="suspect-grid">${suspects.map((suspect) => `<article class="suspect-card"><h2>${escapeHtml(suspect.name)}</h2><p class="suspect-role">${escapeHtml(suspect.role)}</p><p>${escapeHtml(suspect.detail)}</p></article>`).join("")}</div>
+          <div class="suspect-grid">${SUSPECT_BRIEFS.map((suspect) => `<article class="suspect-card"><h2>${escapeHtml(suspect.name)}</h2><p class="suspect-role">${escapeHtml(suspect.role)}</p><p>${escapeHtml(suspect.detail)}</p></article>`).join("")}</div>
           <button class="primary-button" data-next="game">Begin the investigation <span aria-hidden="true">→</span></button>
         </div>
       </section>
@@ -74,7 +67,7 @@ function renderGame() {
         <div class="game-layout ${ui.dictionaryOpen ? "" : "dictionary-hidden"}">
           ${ui.dictionaryOpen ? `<aside class="action-reference" aria-label="Action descriptions">
             <h2>Action reference</h2>
-            <dl>${obs.actionGuide.map((item) => `<div><dt>${escapeHtml(item.template || item.action)}</dt><dd>${escapeHtml(item.description)}</dd></div>`).join("")}</dl>
+            <dl>${obs.actionGuide.map((item) => `<div><dt>${escapeHtml(item.template || item.action)}</dt>${item.description ? `<dd>${escapeHtml(item.description)}</dd>` : ""}</div>`).join("")}</dl>
           </aside>` : ""}
           <section class="play-column">
             <div class="case-strip"><span>${escapeHtml(obs.room === "private interview" ? "Private interview" : titleCase(obs.room))}</span><span>${obs.successfulActions} / ${obs.actionLimit} actions</span></div>
@@ -91,10 +84,10 @@ function renderGame() {
                 ${ui.actionWord === "ask" ? `<div class="ask-command"><label><span>Ask</span><input name="askPerson" value="${escapeHtml(ui.askPerson)}" placeholder="Person" autocomplete="off" autofocus required></label><span class="about-divider">about</span><label><span>About</span><input name="askTopic" value="${escapeHtml(ui.askTopic)}" placeholder="Subject" autocomplete="off" required></label></div>` : ui.actionWord === "interview privately" ? `<label><span>Interview privately</span><input name="personTarget" value="${escapeHtml(ui.personTarget)}" placeholder="Person" autocomplete="off" autofocus required></label>` : ui.actionWord === "return" ? `<label><span>Return</span><input name="personTarget" value="${escapeHtml(ui.personTarget)}" placeholder="Person" autocomplete="off" autofocus required></label>` : ui.actionWord === "show" ? `<div class="ask-command"><label><span>Show to</span><input name="showPerson" value="${escapeHtml(ui.showPerson)}" placeholder="Person" autocomplete="off" autofocus required></label><label><span>Evidence</span><input name="showEvidence" value="${escapeHtml(ui.showEvidence)}" placeholder="Evidence name" autocomplete="off" required></label></div>` : ui.actionWord === "compare" ? `<div class="compare-command"><span>compare</span><input name="compareA" aria-label="Evidence item A" value="${escapeHtml(ui.compareA)}" placeholder="Evidence item A" autocomplete="off" autofocus required><span>with</span><input name="compareB" aria-label="Evidence item B" value="${escapeHtml(ui.compareB)}" placeholder="Evidence item B" autocomplete="off" required></div>` : `<label><span>Complete the phrase</span><input name="remainder" value="${escapeHtml(ui.remainder)}" placeholder="Type the rest of the action…" autocomplete="off" autofocus required></label>`}</div>
                 <div class="command-preview"><span>COMMAND PREVIEW</span><output id="command-preview">${escapeHtml(preview || "Choose an action word and finish the phrase.")}</output></div>
                 <button class="submit-button" type="submit">Try this action <span aria-hidden="true">↗</span></button>
-              </form><p class="dictionary-note">Only action words are provided. Infer the target and the rest of the phrasing from the scene, prior findings, and responses. The case engine checks the completed action.</p>
+              </form><p class="dictionary-note">Choose an available action word, then complete its query with a name or keyword from the scene, evidence, or earlier responses. Suspects can be named by a recognized full name, surname, or title. The dictionary gives action forms, not a list of valid targets; the case engine checks the full query.</p>
             </section>`}
             <section class="history-panel"><div class="panel-heading"><h2>Recent actions</h2></div>
-              <div class="history-list">${obs.history.slice(-7).reverse().map((entry) => `<article><span>${escapeHtml(titleCase(entry.room))}</span><div><b>${escapeHtml(entry.action)}</b><p>${escapeHtml(entry.message)}</p></div></article>`).join("") || `<p class="muted">Your actions and their results will be recorded here.</p>`}</div>
+              <div class="history-list">${obs.history.slice(-7).reverse().map((entry) => `<article><span>${escapeHtml(titleCase(entry.room))}</span><div><b>${escapeHtml(entry.action)}${entry.valid === false ? " · Rejected" : ""}</b><p>${escapeHtml(entry.message)}</p></div></article>`).join("") || `<p class="muted">Your actions and their results will be recorded here.</p>`}</div>
             </section>
           </section>
           <aside class="case-notes">
@@ -105,7 +98,7 @@ function renderGame() {
               <ul class="room-list">${ROOMS.map((room) => `<li class="${room === obs.room ? "current-room" : ""}" ${room === obs.room ? 'aria-current="location"' : ""}><span>${escapeHtml(titleCase(room))}</span>${room === obs.room ? `<span class="room-here">YOU ARE HERE</span>` : ""}</li>`).join("")}</ul>
             </section>
             <section class="notes-section"><h2>Suspects</h2>
-              <div class="roster-list">${suspects.map((suspect) => `<article><div><h3>${escapeHtml(suspect.name)}</h3><span>${escapeHtml(suspect.role)}</span></div><p>${escapeHtml(suspect.detail)}</p></article>`).join("")}</div>
+              <div class="roster-list">${obs.suspects.map((suspect) => `<article><div><h3>${escapeHtml(suspect.name)}</h3><span>${escapeHtml(suspect.role)}</span></div><p>${escapeHtml(suspect.detail)}</p></article>`).join("")}</div>
             </section>
             <section class="notes-section evidence-section"><div class="notes-title"><h2>Evidence</h2></div>
               ${obs.evidence.length ? `<ul>${obs.evidence.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="muted">Nothing has been logged yet.</p>`}

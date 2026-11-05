@@ -1,4 +1,4 @@
-const hasAction = (observation, action) => observation.history.some((entry) => entry.action === action);
+const hasAction = (observation, action) => observation.history.some((entry) => entry.action === action && entry.valid !== false);
 
 // A deterministic evidence-first investigator. It infers its next command from
 // visible facts and prior responses; the engine is the only legality oracle.

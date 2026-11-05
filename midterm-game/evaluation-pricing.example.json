@@ -1,0 +1,8 @@
+{
+  "provider": "openai",
+  "model": "FILL_WITH_THE_FROZEN_TRACE_MODEL",
+  "asOf": "YYYY-MM-DD",
+  "sourceUrl": "https://platform.openai.com/docs/pricing",
+  "inputUsdPerMillion": null,
+  "outputUsdPerMillion": null
+}

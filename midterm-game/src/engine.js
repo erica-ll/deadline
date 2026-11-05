@@ -1,46 +1,132 @@
 export const ROOMS = ["living room", "library", "kitchen", "garden"];
 export const SUSPECTS = ["Baxter", "Dunbar", "George", "Mrs. Robner"];
+export const CASE_INTRODUCTION = "Marshall Robner was found dead in the Library. His death appears to be suicide, but you, the investigating inspector, are not convinced. You will examine the scene and question the household. Robner had been taking a medicine called Ebullion.";
+export const SUSPECT_BRIEFS = [
+  { name: "Mr. Baxter", role: "Business partner", detail: "Robner's longtime business partner." },
+  { name: "Ms. S. Dunbar", role: "Secretary", detail: "Robner's secretary; she has worked for him for about ten years." },
+  { name: "George Robner", role: "Son", detail: "Robner's son." },
+  { name: "Mrs. Leslie Phillips Robner", role: "Wife", detail: "Robner's wife." },
+];
 export const ACTION_GUIDE = [
-  { action: "go to", description: "Move to another room." },
-  { action: "inspect", description: "Look at a visible object, person, or document. The Garden's porcelain fragment may also be called fragment or porcelain." },
-  { action: "search", description: "Search around objects for details, hidden items, or counts. Search a person's belongings during a private interview." },
+  { action: "go to", template: "go to [room]", description: "Move to another room." },
+  { action: "inspect", template: "inspect [target]", description: "Look at a visible object, person, document, or piece of evidence already found." },
+  { action: "search", template: "search [target]", description: "Search around objects for details, hidden items, or counts. Search a person's belongings during a private interview." },
   { action: "ask", template: "ask [person] about [topic]", description: "Question a suspect about a subject." },
   { action: "interview privately", template: "interview privately [person]", description: "Speak privately with a suspect; the officer stays with the others." },
   { action: "return", template: "return [person]", description: "End the private interview and return the suspect to the group." },
   { action: "show", template: "show [person] [evidence]", description: "Present found evidence to a suspect who is with you." },
-  { action: "shade", description: "Shade a writing surface to bring out faint marks." },
-  { action: "analyze", description: "Send found evidence for laboratory analysis." },
+  { action: "read", template: "read [item]" },
+  { action: "shade", template: "shade [object]", description: "Shade a writing surface to bring out faint marks." },
+  { action: "open", template: "open [object]" },
+  { action: "analyze", template: "analyze [evidence]", description: "Send found evidence for laboratory analysis." },
+  { action: "clean", template: "clean [evidence]" },
+  { action: "count", template: "count [object]" },
   { action: "compare", template: "compare [A] with [B]", description: "Compare two evidence items. Either order is accepted." },
-  { action: "accuse", description: "Name a suspect who is present. If an episode limit does not end the game, choose to close the case or continue investigating." },
+  { action: "accuse", template: "accuse [suspect]", description: "Name a suspect who is present. If an episode limit does not end the game, choose to close the case or continue investigating." },
 ];
+export const COMMAND_PROTOCOL = "Choose an action word from actionWords, which lists the command heads currently available in this state. Start the submitted command with that exact action word, then fill its bracketed fields using a name or keyword inferred from the scene, briefing, evidence, and history. A suspect can be named by a recognized full name, surname, or title form; the engine resolves those forms to the same person. The action guide gives command forms, not a list of valid targets or complete legal commands. The engine checks the full command against the current situation; an unsupported target or unmet condition is rejected without changing investigation facts, and the rejected command and response are recorded in history.";
 const TOPICS = {
-  Baxter: ["alibi", "concert", "Focus", "Focus papers", "ladder", "Dunbar", "George", "Mrs. Robner", "death"],
-  Dunbar: ["alibi", "concert", "LoBlo", "Baxter", "George", "Mrs. Robner", "new will", "death"],
-  George: ["alibi", "new will", "inheritance", "Focus", "Baxter", "Mrs. Robner", "death"],
-  "Mrs. Robner": ["alibi", "letter", "Steven", "Baxter", "George", "Dunbar", "death"],
+  Baxter: ["alibi", "concert", "Focus", "Focus papers", "ladder", "Dunbar", "George", "Mrs. Robner", "Marshall Robner", "death"],
+  Dunbar: ["alibi", "concert", "LoBlo", "Baxter", "George", "Mrs. Robner", "Marshall Robner", "new will", "death"],
+  George: ["alibi", "new will", "inheritance", "Focus", "Baxter", "Mrs. Robner", "Marshall Robner", "death"],
+  "Mrs. Robner": ["alibi", "letter", "Steven", "Allergone", "Baxter", "George", "Dunbar", "Marshall Robner", "death"],
+};
+const EVIDENCE_ITEMS = ["teacup", "saucer", "Ebullion", "Focus papers", "new will", "porcelain fragment", "new chemical", "LoBlo", "Allergone", "letter"];
+const PERSON_ALIASES = {
+  Baxter: ["Baxter", "Mr. Baxter"],
+  Dunbar: ["Dunbar", "Ms. Dunbar", "Ms. S. Dunbar", "S. Dunbar"],
+  George: ["George", "George Robner"],
+  "Mrs. Robner": ["Mrs. Robner", "Mrs. Leslie Phillips Robner", "Leslie Phillips Robner", "Leslie Robner"],
+};
+const INSPECTION_DETAILS = {
+  teacup: "The overturned, hand-painted cup has a brown mark at the bottom and smells faintly of tea.",
+  saucer: "The overturned saucer is hand-painted with a mythological scene and has small brown marks. It smells faintly of tea and matches the household service.",
+  Ebullion: "The bottle is labeled for Marshall Robner. Its 25 mg Ebullion tablets are prescribed for depression: one or two twice daily. The label warns that a sufficient dosage may be harmful or fatal.",
+  "Focus papers": "The packet is labeled Focus Corporation and contains Robner Corp. records.",
+  "new will": "The document is a newly prepared will bearing Marshall Robner's name.",
+  "new chemical": "The lab record lists traces of tea and sugar and another chemical not commonly used as medication. The report does not identify that chemical by name.",
+  LoBlo: "The bottle is labeled LoBlo.",
+  Allergone: "The bottle is labeled Allergone.",
+  letter: "The letter is addressed to Mrs. Marshall Robner and bears a July 6, 1982 postmark.",
 };
 const clone = (v) => structuredClone(v);
+const normalizeName = (name) => String(name).toLowerCase().replace(/\./g, "").replace(/\s+/g, " ").trim();
+const personAliasEntries = Object.entries(PERSON_ALIASES)
+  .flatMap(([person, aliases]) => [...new Set([person, ...aliases])].map((alias) => ({ person, alias, normalized: normalizeName(alias) })))
+  .sort((a, b) => b.normalized.length - a.normalized.length);
+
+function canonicalPerson(value) {
+  const normalized = normalizeName(value);
+  return personAliasEntries.find((entry) => entry.normalized === normalized)?.person || null;
+}
+
+function personPrefix(value) {
+  const words = String(value).trim().split(/\s+/);
+  for (const entry of personAliasEntries) {
+    const aliasWords = entry.alias.split(/\s+/);
+    if (aliasWords.length > words.length) continue;
+    if (aliasWords.every((word, index) => normalizeName(word) === normalizeName(words[index]))) {
+      return { person: entry.person, remainder: words.slice(aliasWords.length).join(" ").trim() };
+    }
+  }
+  return null;
+}
+
+function evidenceInspectionTarget(action) {
+  const match = typeof action === "string" && action.match(/^inspect (.+)$/i);
+  if (!match) return null;
+  const target = match[1].trim().toLowerCase();
+  if (["fragment", "porcelain", "porcelain fragment"].includes(target)) return "porcelain fragment";
+  return EVIDENCE_ITEMS.find((item) => item.toLowerCase() === target) || null;
+}
 
 function normalizeShowAction(action) {
   if (typeof action !== "string" || !action.startsWith("show ")) return action;
-  if (/^show .+ to .+$/.test(action)) return action;
   const body = action.slice(5).trim();
-  for (const person of SUSPECTS) {
-    if (!body.startsWith(`${person} `)) continue;
-    let evidence = body.slice(person.length + 1).replace(/[()]/g, "").replace(/\s+/g, " ").trim();
-    if (person === "Baxter" && evidence.toLowerCase() === "papers") evidence = "Focus papers";
+  const toForm = body.match(/^(.+?)\s+to\s+(.+)$/i);
+  if (toForm) {
+    const person = canonicalPerson(toForm[2]);
+    if (person) return `show ${toForm[1].trim()} to ${person}`;
+  }
+  const prefix = personPrefix(body);
+  if (prefix?.remainder) {
+    let evidence = prefix.remainder.replace(/[()]/g, "").replace(/\s+/g, " ").trim();
+    if (prefix.person === "Baxter" && evidence.toLowerCase() === "papers") evidence = "Focus papers";
     if (["porcelain", "fragment"].includes(evidence.toLowerCase())) evidence = "porcelain fragment";
-    return `show ${evidence} to ${person}`;
+    return `show ${evidence} to ${prefix.person}`;
   }
   return action;
 }
 
 function normalizeAction(action) {
   if (typeof action !== "string") return action;
+  if (action.trim().toLowerCase() === "close the case") return "close the case";
+  // Articles are optional before command targets and question topics.
+  action = action.replace(/\b(?:a|the)\s+/gi, "").replace(/\s+/g, " ").trim();
+  const personAction = action.match(/^(interview privately|return|search|inspect)\s+(.+)$/i);
+  if (personAction) {
+    const person = canonicalPerson(personAction[2]);
+    if (person) action = `${personAction[1].toLowerCase()} ${person}`;
+  }
+  const askAction = action.match(/^ask (.+?) about (.+)$/i);
+  if (askAction) {
+    const speaker = canonicalPerson(askAction[1]);
+    const topicPerson = canonicalPerson(askAction[2]);
+    if (speaker) {
+      const rawTopic = askAction[2].replace(/^(?:his|her)\s+alibi$/i, "alibi");
+      const topic = topicPerson && TOPICS[speaker].includes(topicPerson) ? topicPerson : rawTopic;
+      action = `ask ${speaker} about ${topic}`;
+    }
+  }
+  const askRobner = action.match(/^ask (.+) about (marshall(?:\s+robner)?|mr\.?\s*robner|robner)\.?$/i);
+  if (askRobner) {
+    const person = SUSPECTS.find((name) => name.toLowerCase() === askRobner[1].toLowerCase());
+    if (person) action = `ask ${person} about Marshall Robner`;
+  }
   const accusation = action.match(/^accuse\s+(.+)$/i);
   if (accusation) {
     const names = accusation[1].replace(/,\s*and\s+/gi, ", ").split(/\s*(?:,|\band\b)\s*/i).filter(Boolean);
-    const found = names.map((name) => SUSPECTS.find((person) => person.toLowerCase() === name.trim().toLowerCase()));
+    const found = names.map(canonicalPerson);
     if (found.length && found.every(Boolean) && new Set(found).size === found.length) {
       return `accuse ${SUSPECTS.filter((person) => found.includes(person)).join(" and ")}`;
     }
@@ -66,7 +152,7 @@ function normalizeAction(action) {
 }
 
 export class DeadlineGame {
-  constructor({ maxActions = 50, maxCalls = 60 } = {}) {
+  constructor({ maxActions = 100, maxCalls = 200 } = {}) {
     this.limits = { maxActions, maxCalls };
     this.reset(0);
   }
@@ -96,7 +182,10 @@ export class DeadlineGame {
       garden: "Rows of yellow, red, pink, and white roses fill the garden beside the house. There are holes in the soft earth near your feet. A wooden ladder rests beside the rose beds.",
     }[s.room];
     return {
-      player: playerId, room: s.interviewee ? "private interview" : s.room, roomText,
+      player: playerId, room: s.interviewee ? "private interview" : s.room, rooms: [...ROOMS], roomText,
+      caseIntroduction: CASE_INTRODUCTION,
+      suspects: clone(SUSPECT_BRIEFS),
+      commandProtocol: COMMAND_PROTOCOL,
       actionWords: this.legal_action_words(playerId),
       actionGuide: clone(ACTION_GUIDE),
       choices: s.terminal?.choice ? [
@@ -140,7 +229,7 @@ export class DeadlineGame {
   }
 
   end_episode(reason, message) {
-    if (!this.state.terminal) this._finish(reason, message, 0);
+    if (!this.state.terminal || this.state.terminal.choice) this._finish(reason, message, 0);
     return this.outcome();
   }
 
@@ -149,11 +238,13 @@ export class DeadlineGame {
     if (this.state.terminal && !this.state.terminal.choice) return { valid: false, message: "The case is already closed.", observation: this.observe(playerId), outcome: this.outcome() };
     this.state.submittedCalls += 1;
     if (this.state.submittedCalls > this.limits.maxCalls) {
+      this.state.log.push({ action, message: "The submitted-call limit has been reached.", room: this.state.interviewee ? "private interview" : this.state.room, valid: false });
       this._finish("model_call_limit", "The call limit was reached before the case could be concluded.", 0);
       return { valid: false, message: "The submitted-call limit has been reached.", observation: this.observe(playerId), outcome: this.outcome() };
     }
     if (!this._isLegal(action)) {
       const message = this._invalidReason(action);
+      this.state.log.push({ action, message, room: this.state.interviewee ? "private interview" : this.state.room, valid: false });
       if (this.state.submittedCalls >= this.limits.maxCalls) {
         this._finish("model_call_limit", "The submitted-call limit was reached before the case could be concluded.", 0);
       }
@@ -161,7 +252,7 @@ export class DeadlineGame {
     }
     this.state.successfulActions += 1;
     const message = this._apply(action);
-    this.state.log.push({ action, message, room: this.state.interviewee ? "private interview" : this.state.room });
+    this.state.log.push({ action, message, room: this.state.interviewee ? "private interview" : this.state.room, valid: true });
     if ((!this.state.terminal || this.state.terminal.choice) && this.state.successfulActions >= this.limits.maxActions) {
       this._finish("episode_limit", "The investigation ended at its successful-action limit.", 0);
     } else if ((!this.state.terminal || this.state.terminal.choice) && this.state.submittedCalls >= this.limits.maxCalls) {
@@ -176,6 +267,9 @@ export class DeadlineGame {
     const add = (...a) => out.push(...a);
     if (this.state.terminal?.choice) return ["close the case", "continue investigating"];
     add("compare new chemical with LoBlo", "compare new chemical with Allergone");
+    for (const item of EVIDENCE_ITEMS) {
+      if (this.state.found[item]) add(`inspect ${item === "porcelain fragment" ? "fragment" : item}`);
+    }
     if (this.state.interviewee) {
       const person = this.state.interviewee;
       add(`return ${person}`, `search ${person}`, `accuse ${person}`);
@@ -208,7 +302,7 @@ export class DeadlineGame {
   }
 
   _showPairs() {
-    return [["LoBlo", "Dunbar"], ["porcelain fragment", "Dunbar"], ["porcelain fragment", "Baxter"], ["Focus papers", "Baxter"], ["new will", "George"], ["letter", "Mrs. Robner"]];
+  return [["LoBlo", "Dunbar"], ["porcelain fragment", "Dunbar"], ["porcelain fragment", "Baxter"], ["Focus papers", "Baxter"], ["new will", "George"], ["new will", "Mrs. Robner"], ["letter", "Mrs. Robner"]];
   }
 
   _isLegal(a) {
@@ -221,6 +315,9 @@ export class DeadlineGame {
     const has = (key) => Boolean(s.found[key]);
     if (a === "compare new chemical with LoBlo") return has("new chemical") && has("LoBlo");
     if (a === "compare new chemical with Allergone") return has("new chemical") && has("Allergone");
+    if (a === "inspect letter") return (s.room === "living room" && s.letterDelivered) || has("letter");
+    const inspectTarget = evidenceInspectionTarget(a);
+    if (inspectTarget && has(inspectTarget)) return true;
     if (a.startsWith("accuse ")) {
       const names = a.slice(7).split(" and ");
       if (names.length === 1) return SUSPECTS.includes(names[0]) && (s.interviewee === names[0] || (!s.interviewee && s.room === "living room"));
@@ -235,7 +332,7 @@ export class DeadlineGame {
       if (a.startsWith(`ask ${p} about `)) return TOPICS[p].includes(a.slice(`ask ${p} about `.length));
       return this._showPairs().some(([e, who]) => who === p && a === `show ${e} to ${p}` && s.found[e]);
     }
-    if (a === "inspect letter" || a === "read letter") return s.room === "living room" && s.letterDelivered;
+    if (a === "read letter") return s.room === "living room" && s.letterDelivered;
     for (const p of SUSPECTS) {
       if (a === `inspect ${p}` || a === `search ${p}`) return s.room === "living room";
       if (a === `interview privately ${p}`) return s.room === "living room";
@@ -276,6 +373,8 @@ export class DeadlineGame {
     if (a === "read letter" && !this.state.letterDelivered) return "The letter has not arrived yet.";
     if (a === "open safe" && !this.state.safeFound) return "You have not found the concealed safe.";
     if (a === "clean fragment" && !this.state.found["porcelain fragment"]) return "Find the porcelain fragment in the Garden first.";
+    if (a === "inspect fragment" && !this.state.found["porcelain fragment"]) return "Find the porcelain fragment in the Garden first.";
+    if (a.startsWith("go to ") && !ROOMS.includes(a.slice(6))) return `There is no ${a.slice(6)} in this house. The rooms are: ${ROOMS.join(", ")}.`;
     if (a.startsWith("compare new chemical with ") && !this.state.found["new chemical"]) return "Analyze the porcelain fragment first.";
     if (a === "compare new chemical with LoBlo" && !this.state.found.LoBlo) return "Find Dunbar's LoBlo first.";
     if (a === "compare new chemical with Allergone" && !this.state.found.Allergone) return "Find Mrs. Robner's Allergone first.";
@@ -298,11 +397,24 @@ export class DeadlineGame {
     }
     if (a.startsWith("interview privately ")) {
       s.interviewee = a.slice("interview privately ".length);
-      return `${s.interviewee} agrees to speak with you privately. The officer stays with the others.`;
+      return `${s.interviewee} agrees to speak with you privately. The officer stays with the others. You can start by asking about their alibi.`;
     }
     if (a.startsWith("return ")) {
       const p = s.interviewee; s.interviewee = null;
       return `The private interview with ${p} ends. ${p} returns to the officer and the group.`;
+    }
+    const inspectTarget = evidenceInspectionTarget(a);
+    if (inspectTarget && s.found[inspectTarget]) {
+      if (inspectTarget === "porcelain fragment") {
+        const surface = s.clues.fragment_cleaned
+          ? "cleaned of dried mud, with its painted design visible"
+          : "covered in dried mud, with its design difficult to make out";
+        const match = s.clues.fragment_cleaned && s.clues.china_examined
+          ? " Its painted pattern matches the china you examined in the Kitchen."
+          : "";
+        return `The porcelain fragment is ${surface}.${match}`;
+      }
+      return INSPECTION_DETAILS[inspectTarget];
     }
     if (a === "inspect body") { clue("body_inspected"); return "Robner lies on the Library floor beside a teacup and a saucer."; }
     if (a === "inspect teacup") { found("teacup"); return "The overturned, hand-painted cup has a brown mark at the bottom and smells faintly of tea."; }
@@ -328,7 +440,7 @@ export class DeadlineGame {
     if (a === "inspect fragment") return `The porcelain is filthy with dried mud. You can barely make out the design beneath it.${s.clues.fragment_cleaned && s.clues.china_examined ? " Its painted pattern matches the china you examined in the Kitchen." : ""}`;
     if (a === "clean fragment") { clue("fragment_cleaned"); return `As you wipe off the porcelain, its hand-painted design becomes visible${s.clues.china_examined ? ". The markings match the china you examined in the Kitchen" : ""}.`; }
     if (a === "analyze fragment") { clue("fragment_analyzed"); found("new chemical"); return "The lab finds traces of tea and sugar, along with another chemical not commonly used as medication. It is not Amitraxin (Ebullion). No clear fingerprints remain."; }
-    if (a === "compare new chemical with LoBlo") { clue("poison_confirmed"); return "The lab identifies Methsparin, sold as LoBlo, on the fragment. A recheck finds a high level of Methsparin in Robner's blood. The report describes how Methsparin displaces Ebullion from protein binding, leaving more free Ebullion in the blood and simulating an overdose. The pathologist attributes death to Ebullion toxicity after ingestion of both medicines."; }
+    if (a === "compare new chemical with LoBlo") { clue("poison_confirmed"); return "The lab finds Methsparin, the active ingredient in LoBlo, on the fragment and at a high level in Robner's blood. Methsparin can displace Ebullion from proteins in the blood, leaving more free Ebullion there. The pathologist concludes that the combination caused fatal Ebullion toxicity."; }
     if (a === "compare new chemical with Allergone") return "The comparison finds no match between the new chemical on the porcelain fragment and Mrs. Robner's Allergone label.";
     if (a === "inspect letter") return "The envelope is addressed to Mrs. Marshall Robner. It bears a July 6, 1982 postmark.";
     if (a === "read letter") { found("letter"); clue("letter_read"); s.pendingMessages = s.pendingMessages.filter(({ id }) => id !== "letter-arrived"); return `“Dear Leslie,\n\nI am sorry to hear that Marshall is despondent again. I know how much his troubles weigh on you, and I wish I could be there to comfort you. His despondency is tied to his business. He speaks of suicide when he is in this state, but the thought of what will happen to the company may keep him going.\n\nSo George has made his threats again? It is hard to believe he could cause Marshall so much pain. If the worst should happen, you will be provided for as you deserve.\n\nI look forward to Friday, when we can be together again. Until then, remember how much I love you and the life we hope to share.\n\nLove,\nSteven”`; }
@@ -402,7 +514,7 @@ export class DeadlineGame {
           : "The jury declines to convict. The evidence does not place Baxter near the grounds on the night of the murder; his symphony alibi was confirmed by several people.";
       this._finish(complete ? "complete_solution" : "weak_case", complete ? "The prosecution presents the poison report, Dunbar's possession of LoBlo, the conflicting concert accounts, and the Focus papers and notepad impression linking Baxter to Robner's business dispute. The jury convicts Baxter and Dunbar of Robner's murder. The case is closed with both roles established by the evidence." : weakMessage, complete ? 1 : 0, complete ? "Case solved" : "The joint case is not proved");
     } else {
-      this._finish("unsupported_accusation", "This accusation combination does not establish a case. The investigation closes without a supported account of Robner's death.", 0, "The accusation is not proved");
+      throw new Error("The accusation resolver received an impossible suspect set.");
     }
   }
 
@@ -418,20 +530,23 @@ export class DeadlineGame {
       "Dunbar:concert": privateMode ? "Oh, I...well, I guess I should tell you. You see, Mr. Baxter and I, we go together to concerts, only occasionally, you understand. We went that night, the night Marshall died. Then he took me home and that's it. I should have said something before, but I just didn't think it was important, and, well, I didn't think that the others should know we were seeing each other socially. Our...nobody knows about it, you know. Please don't say anything!" : "I don't know what you are talking about. I don't go in for concerts much, you know.",
       "Baxter:alibi": privateMode ? "Ms. Dunbar was with me at the concert on the night that Marshall killed himself. She became ill at intermission and hired a car to take her back home. You see, Inspector, I know that Ms. Dunbar appreciates classical music, so I occasionally ask her along to my subscription series. I really should have told the other detective, but I didn't think it mattered." : "I can't help you there.",
       "Dunbar:alibi": privateMode ? "Oh, I...well, I guess I should tell you. You see, Mr. Baxter and I, we go together to concerts, only occasionally, you understand. We went that night, the night Marshall died. Then he took me home and that's it. I should have said something before, but I just didn't think it was important, and, well, I didn't think that the others should know we were seeing each other socially. Our...nobody knows about it, you know. Please don't say anything!" : "I'm sorry, but I can't help you with that.",
-      "Dunbar:LoBlo": s.found.LoBlo ? "You found those in my bathroom, didn't you? I've been taking them for months for my blood pressure. Are they important?" : "I'm sorry, but I can't help you with that.",
+      "Dunbar:LoBlo": s.found.LoBlo ? "You found those among my things, didn't you? I've been taking them for months for my blood pressure. Are they important?" : "I'm sorry, but I can't help you with that.",
       "George:new will": s.found["new will"] ? "You should know what it says." : "I don't know anything about any new will.",
       "George:alibi": "I haven't a clue.",
       "George:inheritance": "Dad always threatened to write a new will, but I guess he ran out of time.",
       "Mrs. Robner:Steven": s.shown["letter:Mrs. Robner"] ? "Steven is a close personal friend. We have known him for many years, and I visit his home frequently. Marshall knew of our friendship and didn't begrudge it in the slightest. My husband and I had a very trusting relationship. You may find the idea of trust difficult to understand, I suppose." : "I don't know who you mean. I have no friend named Steven.",
       "Mrs. Robner:letter": "I don't know much about that.",
+      "Mrs. Robner:Allergone": "It is a medicine for my allergies. I keep it with my personal things.",
       "Baxter:Focus": s.shown["Focus papers:Baxter"] ? "I told you already. There was no legal wrongdoing, only some reporters trying to stir up a fuss." : "I'm not sure what you mean. Focus Corporation has been a subsidiary of Robner Corp. for some years. I fail to see its import.",
       "Baxter:George": "I've known the boy for some time, and believe me, he's no good. He's wasted more money this year than you've probably earned. His father reprimanded him frequently, as you know. George even threatened his father from time to time.",
       "Baxter:Dunbar": "Ms. Dunbar is an efficient and tireless worker. She has been of tremendous help to Marshall and has been working quite hard for him lately. She had a great deal of respect for him, that's clear. She has a keen mind and is an exceptional strategic planner for the corporation.",
       "Baxter:Mrs. Robner": "Leslie is a fine woman from a distinguished family. She was much more outgoing than Marshall, but she seems to have become accustomed to the quiet life here. I am quite grieved for her.",
+      "Baxter:Marshall Robner": "Marshall Robner was my longtime business partner and the founder of Robner Corp. He handled new products while I managed much of the company's business. I owe him a great deal.",
       "Baxter:ladder": "What ladder? You know, Inspector, your questions are becoming quite tiresome.",
       "Baxter:death": "Marshall was a truly great man...a brilliant manager; he started the corporation single-handedly about 25 years ago and is mostly responsible for its reputation. I owe him a great deal. He was also a great philanthropist and got the corporation involved in many charitable works. I am not given to shows of emotion, Inspector, but I will miss him greatly.",
       "Dunbar:George": "Nobody likes George much. He's always alone when he's here, and that's only when he can't get more money to waste. I think he's just been waiting for the day when his father's money would be his. I can't say I miss him when he's not here: A thoroughly obnoxious child.",
       "Dunbar:Mrs. Robner": "She's a lovely person. She and Marshall were always an odd couple: he was so quiet and reserved, and she's so lively and sociable. She's changed a lot over the last few years. She used to enjoy life here, but lately she's been restless and irritable, and now with Marshall's death, I'm worried about what may become of her.",
+      "Dunbar:Marshall Robner": "Mr. Robner was my employer for about ten years. I handled many of his business matters and worked closely with him. Lately he seemed nervous and depressed about business.",
       "Dunbar:Focus": "Focus? There was once a subsidiary of Robner Corp. with that name. I can't recall much about it, though.",
       "Dunbar:new will": s.found["new will"] ? "I guess I'm not surprised that Marshall disinherited George. He's been asking for it." : "As far as I know, there was no new will written, although Marshall did threaten to disinherit George. I guess he could have written one without my knowledge. I'm not always with him, you know.",
       "Dunbar:death": "I've known him for years. He's been tremendously nervous and depressed lately about business. I don't think all was well in his personal life either. George has always been a problem for him. He even mentioned suicide once, although I never took it seriously. It shows you can never tell.",
@@ -439,9 +554,11 @@ export class DeadlineGame {
       "George:Baxter": "I don't know much about him, really. With Baxter, it's always business, and he's not here much except to discuss business with Dad. You might ask Ms. Dunbar about him, though. She handled lots of Dad's business matters herself, so they work together a lot. They probably know each other pretty well.",
       "George:Dunbar": "She's been here for about ten years, I guess. She knows a lot about Dad's business, and he lets her take care of a lot of stuff by herself. Other than that, I can't say. We don't get in each other's way. I think she's heard Dad lecture me too often.",
       "George:Mrs. Robner": "She's OK. Not as stuck up as Dad about money. We've always gotten along pretty well. I think she understands me better than Dad ever did.",
+      "George:Marshall Robner": "He was my father. We didn't get along too well; he was always riding me and giving me a hard time. I can't say I loved him.",
       "George:death": "We didn't get along too well. He was always riding me, giving me a hard time. Look, man. I'm not going to lie and say I loved him, right?",
       "Mrs. Robner:Baxter": "Baxter has been my husband's partner for a long time, but they're not close friends. Baxter has always had the head for making money, and Marshall had the creative spark for new products. The two of them were perfect for each other in the early days. Of course, things haven't been going well lately. I guess none of that matters much now.",
       "Mrs. Robner:George": "A child. He may be a man in age, but he still hasn't really grown up. He'll find himself someday, but in the meantime he can be a trial. I guess Marshall and I were too lenient. We probably still are, but he is our son, after all. We can't throw him out on the street.",
+      "Mrs. Robner:Marshall Robner": "Marshall was my husband. He was quiet and reserved, and devoted much of his life to Robner Corp. I loved him, and I am very sorry to have lost him.",
       "Mrs. Robner:Dunbar": "I've always thought she was a bit too smug in her relationships around here. A bit above herself, if you see my meaning. After all, she's really just a glorified secretary. She acts as though she's part of the family, and she does get along well with almost everyone here. I swear, though, Marshall spent more time with her than me, lately. Um...not that I'm trying to imply that anything went on between them. Quite the contrary.",
       "Mrs. Robner:death": "I loved my husband, no matter what you may think. I am very sorry to have lost him.",
       "Mrs. Robner:alibi": "I don't know much about that.",
@@ -458,11 +575,12 @@ export class DeadlineGame {
     this.state.shown[`${evidence}:${person}`] = true;
     const privateMode = this.state.interviewee === person;
     const lines = {
-      "LoBlo:Dunbar": "They're my pills. You must have taken them from my bathroom. Well, what am I supposed to say?",
+      "LoBlo:Dunbar": "They're my pills. You found them among my things. I've been taking them for months for my blood pressure. What am I supposed to say?",
       "porcelain fragment:Dunbar": "He didn't commit suicide, then? But LoBlo, that's a pill I take for my blood pressure. I can tell what you're thinking, but I didn't, couldn't have done it. Why should I? Someone must have taken them, maybe George. He knew I used them.",
       "porcelain fragment:Baxter": "This is quite peculiar. It appears that Marshall was murdered. I wonder...I would have a word with George if I were you, Inspector.",
       "Focus papers:Baxter": `I'm afraid I haven't been entirely candid with you. There was some trouble a few years ago with Focus Corp. because of some, let us say, irresponsible dealings on my part. Marshall agreed to cover up my involvement to save the company any bad publicity.${this.state.clues.notepad_read ? " I can't understand why he would be insisting that I do this or that, though, as it says on that note you showed me. He must have changed his mind, since I never received the note." : ""}`,
       "new will:George": "You should know what it says.",
+      "new will:Mrs. Robner": "I had no idea Marshall had prepared a new will. George is our son; I don't know what Marshall intended to change.",
       "letter:Mrs. Robner": "You have certainly stooped to a new low, Inspector. Opening people's mail. I think there are laws against that, but I guess you wouldn't know. In any case, what of it? It's from a friend of mine, an old friend from school. We get together now and then to discuss old times. I don't suppose there is a law against that?",
     };
     const response = lines[`${evidence}:${person}`] || "I can't help you there.";

@@ -64,10 +64,10 @@ provided to a human or machine player. The observation's `rooms` field lists
 the four rooms and `actionWords` contains available command heads only.
 Invalid actions do not consume a successful action or change evidence/location;
 submitted calls
-still count toward the separate call cap. The investigation ends after 100
-successful actions. The player runner allows at most 200 model calls by default
+still count toward the separate call cap. The investigation ends after 75
+successful actions. The player runner allows at most 100 model calls by default
 and 60 seconds for each request; set `MAX_MODEL_CALLS` or `MODEL_TIMEOUT_MS`
-to change those runner limits. The 100-action cap applies to successful actions;
+to change those runner limits. The 75-action cap applies to successful actions;
 rejected commands use model calls but do not advance that count.
 
 The game starts in the Living Room. Movement, investigation, conversation,
@@ -77,9 +77,17 @@ engine and project action specification, but player interfaces do not
 enumerate currently valid command combinations. Private suspect searches occur
 only in a private interview. Public searches are refused. Analyzed
 Garden-fragment evidence must be compared with LoBlo. A strong joint
-conclusion also requires Dunbar's LoBlo, both private alibi/concert accounts, a
-shaded notepad, and reading the Focus papers. The Garden-hole inspection and
+conclusion also requires Dunbar's LoBlo, both concert ticket stubs and both
+suspects' accounts establishing the murder timeline, a shaded notepad, and
+reading the Focus papers. The Garden-hole inspection and
 Kitchen count are optional observations, not outcome prerequisites.
+
+The current engine version is `1.8.0`; the npm package version `1.0.0` is the
+package release number and is tracked separately. The frozen scored model
+configuration is OpenAI `gpt-6-luna`, config
+`robner-checkpoints-v2-config-1`, prompt
+`robner-action-heads-v6-rejection-history`, and context protocol
+`engine-observation-history-v3`.
 Private interviews do not move the detective to a named room; the engine marks
 the interview as a separate scene and returns to the prior room when it ends.
 Unresolved story notices are included in `observation.pendingMessages` and
@@ -94,8 +102,8 @@ This suite uses the fixed `robner-checkpoints-v2` schedule: S1-T1/1101,
 S2-T1/2201, S3-T1/3301, S1-T2/1102, S2-T2/2202, and S3-T2/3302. S1 is a
 fresh case; S2 starts after the Library setup; S3 starts after the interviews
 and Kitchen/Garden setup. Bootstrap is replayed through the engine and remains
-in visible history. Those setup moves count toward 100 successful actions, but
-not toward the player's 200 model calls. Each player trial gets up to 200 calls
+in visible history. Those setup moves count toward 75 successful actions, but
+not toward the player's 100 model calls. Each player trial gets up to 100 calls
 and 60 seconds per request.
 
 Configure OpenAI in `.env` (the watch server keeps credentials on the server;
@@ -162,10 +170,11 @@ starts the model until you press the explicit button.
 
 After model traces are available, prepare a dated OpenAI pricing snapshot using
 the frozen model's official rates, starting from
-`evaluation-pricing.example.json`, then create a report:
+`evaluation-pricing.example.json`, then create a report (the committed snapshot
+records the rates used for the current evaluation):
 
 ```sh
-npm run report:evaluation -- --pricing evaluation-pricing.json
+npm run report:evaluation -- --pricing evaluation-pricing-2026-11-05.json
 ```
 
 The report pairs outcomes and call counts, and calculates estimated cost from
@@ -258,7 +267,7 @@ accusation paths, the incomplete Dunbar-case epilogue, and the
 evidence-dependent joint accusation.
 
 Excluded: the larger cast and timeline, real-time movement, formal arrests,
-ticket-stub evidence, parser synonyms, the combination puzzle, separate
+other source ticket-search branches, parser synonyms, the combination puzzle, separate
 closet, and interactive simulation of the post-case murder. These cuts keep
 the case finishable while preserving the approved clue logic.
 
@@ -268,7 +277,7 @@ the case finishable while preserving the approved clue logic.
 | Legal actions, contexts, entry-two letter, search and interview behavior | `design` | [Action dictionary: command forms and room actions](../ACTION_DICTIONARY_AND_RULES.md#command-forms); [suspect questions and interviews](../ACTION_DICTIONARY_AND_RULES.md#suspect-questions-and-interviews) |
 | Evidence dependencies and lab results | `design` | [Action dictionary: Library, Kitchen, and Garden actions](../ACTION_DICTIONARY_AND_RULES.md#room-specific-object-actions) |
 | Five accusation paths, close/continue choice after each accusation, and truth window | `design` | [Action dictionary: accusation outcomes](../ACTION_DICTIONARY_AND_RULES.md#accusation-outcomes); [story plan: accusation case reports and truth window](../MIDTERM_STORY_RECONSTRUCTION_PLAN.md#accusation-case-reports-and-truth-window) |
-| 100 successful-action episode, 200-call and 60-second runner defaults | `design` | [AGENTS.md settled implementation defaults](../AGENTS.md#design-specifications-and-their-purposes); enforced in `src/engine.js` and `players/run.js` |
+| 75 successful-action episode, 100-call and 60-second runner defaults | `design` | [AGENTS.md settled implementation defaults](../AGENTS.md#design-specifications-and-their-purposes); enforced in `src/engine.js` and `players/run.js` |
 | Role-scoped observation and model action boundary | `design` | [AGENTS.md source and implementation constraints](../AGENTS.md#how-to-work); exposed fields are in `src/engine.js`, inputs in `players/model-player.js` |
 | Browser presentation and action ordering | `design` | This implementation's text-first responsive interface in `src/main.js` and `src/style.css` |
 | Fixed-priority baseline policy | `design` | [EVALUATION.md](EVALUATION.md#baseline-and-comparison); `players/baseline.js` |

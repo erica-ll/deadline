@@ -32,7 +32,7 @@ Implement only:
    first trial.
 
 Do not change story rules, clues, actions, evidence dependencies, outcomes,
-model prompt, 100-action limit, or default 200-model-call/60-second-timeout
+model prompt, 75-action limit, or default 100-model-call/60-second-timeout
 limits unless a later explicit student instruction authorizes a change; record
 any such change in `EVALUATION.md`. Do not tune or run the live model during
 implementation. Do not read,
@@ -51,10 +51,10 @@ not begin a player trial from a partial setup.
 
 Keep the bootstrap action history visible to the player and in the trace. The
 game's successful-action counter includes bootstrap actions and must not be
-reset: the 100-action episode cap applies to bootstrap plus player actions. The
-model's 200-call budget begins at zero for the player's live trial because
+reset: the 75-action episode cap applies to bootstrap plus player actions. The
+model's 100-call budget begins at zero for the player's live trial because
 bootstrap actions are evaluator setup, not model calls. Configure the engine's
-submitted-call guard so that the player can still make at most 200 submitted
+submitted-call guard so that the player can still make at most 100 submitted
 calls after bootstrap. Report bootstrap action/call counts separately from
 player actions and model calls; explain the distinction in the trace schema and
 README. The agent receives only normal player observations, including the

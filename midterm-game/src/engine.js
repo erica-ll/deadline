@@ -26,12 +26,12 @@ export const ACTION_GUIDE = [
 ];
 export const COMMAND_PROTOCOL = "Choose an action word from actionWords, which lists the command heads currently available in this state. Start the submitted command with that exact action word, then fill its bracketed fields using a name or keyword inferred from the scene, briefing, evidence, and history. A suspect can be named by a recognized full name, surname, or title form; the engine resolves those forms to the same person. The action guide gives command forms, not a list of valid targets or complete legal commands. The engine checks the full command against the current situation; an unsupported target or unmet condition is rejected without changing investigation facts, and the rejected command and response are recorded in history.";
 const TOPICS = {
-  Baxter: ["alibi", "concert", "Focus", "Focus papers", "ladder", "Dunbar", "George", "Mrs. Robner", "Marshall Robner", "death"],
-  Dunbar: ["alibi", "concert", "LoBlo", "Baxter", "George", "Mrs. Robner", "Marshall Robner", "new will", "death"],
+  Baxter: ["alibi", "concert", "concert ticket", "ticket stub", "Focus", "Focus papers", "ladder", "Dunbar", "George", "Mrs. Robner", "Marshall Robner", "death"],
+  Dunbar: ["alibi", "concert", "concert ticket", "ticket stub", "LoBlo", "Baxter", "George", "Mrs. Robner", "Marshall Robner", "new will", "death"],
   George: ["alibi", "new will", "inheritance", "Focus", "Baxter", "Mrs. Robner", "Marshall Robner", "death"],
   "Mrs. Robner": ["alibi", "letter", "Steven", "Allergone", "Baxter", "George", "Dunbar", "Marshall Robner", "death"],
 };
-const EVIDENCE_ITEMS = ["teacup", "saucer", "Ebullion", "Focus papers", "new will", "porcelain fragment", "new chemical", "LoBlo", "Allergone", "letter"];
+const EVIDENCE_ITEMS = ["teacup", "saucer", "Ebullion", "Focus papers", "new will", "porcelain fragment", "new chemical", "LoBlo", "Allergone", "concert ticket", "letter"];
 const PERSON_ALIASES = {
   Baxter: ["Baxter", "Mr. Baxter"],
   Dunbar: ["Dunbar", "Ms. Dunbar", "Ms. S. Dunbar", "S. Dunbar"],
@@ -47,6 +47,7 @@ const INSPECTION_DETAILS = {
   "new chemical": "The lab record lists traces of tea and sugar and another chemical not commonly used as medication. The report does not identify that chemical by name.",
   LoBlo: "The bottle is labeled LoBlo.",
   Allergone: "The bottle is labeled Allergone.",
+  "concert ticket": "The ticket stubs are for the Hartford Philharmonic concert on July 7, 1982, at 8 p.m. That matches the preliminary time of Marshall Robner's death.",
   letter: "The letter is addressed to Mrs. Marshall Robner and bears a July 6, 1982 postmark.",
 };
 const clone = (v) => structuredClone(v);
@@ -76,6 +77,7 @@ function evidenceInspectionTarget(action) {
   const match = typeof action === "string" && action.match(/^inspect (.+)$/i);
   if (!match) return null;
   const target = match[1].trim().toLowerCase();
+  if (["ticket", "ticket stub", "concert tickets", "ticket stubs"].includes(target)) return "concert ticket";
   if (["fragment", "porcelain", "porcelain fragment"].includes(target)) return "porcelain fragment";
   return EVIDENCE_ITEMS.find((item) => item.toLowerCase() === target) || null;
 }
@@ -86,11 +88,15 @@ function normalizeShowAction(action) {
   const toForm = body.match(/^(.+?)\s+to\s+(.+)$/i);
   if (toForm) {
     const person = canonicalPerson(toForm[2]);
-    if (person) return `show ${toForm[1].trim()} to ${person}`;
+    if (person) {
+      const evidence = ["ticket", "ticket stub", "ticket stubs", "concert tickets"].includes(toForm[1].trim().toLowerCase()) ? "concert ticket" : toForm[1].trim();
+      return `show ${evidence} to ${person}`;
+    }
   }
   const prefix = personPrefix(body);
   if (prefix?.remainder) {
     let evidence = prefix.remainder.replace(/[()]/g, "").replace(/\s+/g, " ").trim();
+    if (["ticket", "ticket stub", "ticket stubs", "concert tickets"].includes(evidence.toLowerCase())) evidence = "concert ticket";
     if (prefix.person === "Baxter" && evidence.toLowerCase() === "papers") evidence = "Focus papers";
     if (["porcelain", "fragment"].includes(evidence.toLowerCase())) evidence = "porcelain fragment";
     return `show ${evidence} to ${prefix.person}`;
@@ -114,7 +120,8 @@ function normalizeAction(action) {
     const topicPerson = canonicalPerson(askAction[2]);
     if (speaker) {
       const rawTopic = askAction[2].replace(/^(?:his|her)\s+alibi$/i, "alibi");
-      const topic = topicPerson && TOPICS[speaker].includes(topicPerson) ? topicPerson : rawTopic;
+      const canonicalTopic = ["ticket", "ticket stub", "concert tickets", "ticket stubs"].includes(rawTopic.toLowerCase()) ? "concert ticket" : rawTopic;
+      const topic = topicPerson && TOPICS[speaker].includes(topicPerson) ? topicPerson : canonicalTopic;
       action = `ask ${speaker} about ${topic}`;
     }
   }
@@ -152,7 +159,7 @@ function normalizeAction(action) {
 }
 
 export class DeadlineGame {
-  constructor({ maxActions = 100, maxCalls = 200 } = {}) {
+  constructor({ maxActions = 75, maxCalls = 100 } = {}) {
     this.limits = { maxActions, maxCalls };
     this.reset(0);
   }
@@ -302,7 +309,7 @@ export class DeadlineGame {
   }
 
   _showPairs() {
-  return [["LoBlo", "Dunbar"], ["porcelain fragment", "Dunbar"], ["porcelain fragment", "Baxter"], ["Focus papers", "Baxter"], ["new will", "George"], ["new will", "Mrs. Robner"], ["letter", "Mrs. Robner"]];
+  return [["LoBlo", "Dunbar"], ["concert ticket", "Baxter"], ["concert ticket", "Dunbar"], ["porcelain fragment", "Dunbar"], ["porcelain fragment", "Baxter"], ["Focus papers", "Baxter"], ["new will", "George"], ["new will", "Mrs. Robner"], ["letter", "Mrs. Robner"]];
   }
 
   _isLegal(a) {
@@ -397,7 +404,7 @@ export class DeadlineGame {
     }
     if (a.startsWith("interview privately ")) {
       s.interviewee = a.slice("interview privately ".length);
-      return `${s.interviewee} agrees to speak with you privately. The officer stays with the others. You can start by asking about their alibi.`;
+      return `${s.interviewee} agrees to speak with you privately. The officer stays with the others.`;
     }
     if (a.startsWith("return ")) {
       const p = s.interviewee; s.interviewee = null;
@@ -414,9 +421,16 @@ export class DeadlineGame {
           : "";
         return `The porcelain fragment is ${surface}.${match}`;
       }
+      if (inspectTarget === "concert ticket") {
+        const baxter = s.clues.baxter_ticket_found;
+        const dunbar = s.clues.dunbar_ticket_found;
+        if (baxter && dunbar) return "The two Hartford Philharmonic stubs are for July 7, 1982, at 8 p.m., matching the preliminary estimate of Robner's death. Baxter's Row R, Seat 7 is beside Dunbar's Row R, Seat 8.";
+        if (baxter) return "Baxter's Hartford Philharmonic stub is for July 7, 1982, at 8 p.m., Row R, Seat 7. The time matches the preliminary estimate of Robner's death.";
+        if (dunbar) return "Dunbar's Hartford Philharmonic stub is for July 7, 1982, at 8 p.m., Row R, Seat 8. The time matches the preliminary estimate of Robner's death.";
+      }
       return INSPECTION_DETAILS[inspectTarget];
     }
-    if (a === "inspect body") { clue("body_inspected"); return "Robner lies on the Library floor beside a teacup and a saucer."; }
+    if (a === "inspect body") { clue("body_inspected"); return "Robner lies on the Library floor beside a teacup and a saucer. The preliminary estimate places his death at about 8 p.m. on July 7, 1982."; }
     if (a === "inspect teacup") { found("teacup"); return "The overturned, hand-painted cup has a brown mark at the bottom and smells faintly of tea."; }
     if (a === "inspect saucer") { found("saucer"); return "The overturned saucer is hand-painted with a mythological scene and has small brown marks. It smells faintly of tea and matches the household service."; }
     if (a === "search body") return "Robner's clothing holds no additional clue in this case.";
@@ -450,7 +464,18 @@ export class DeadlineGame {
     if (a.startsWith("search ") && SUSPECTS.includes(a.slice(7))) {
       const p = a.slice(7);
       if (!s.interviewee) return `${p} refuses a public search. No search occurs.`;
-      if (p === "Dunbar") { found("LoBlo"); return "Dunbar consents to the search. You find a bottle of LoBlo among her belongings."; }
+      if (p === "Baxter") {
+        clue("baxter_ticket_found"); found("concert ticket");
+        this._updateMurderTimeline();
+        const pair = s.clues.dunbar_ticket_found ? " The seat is beside the one on Dunbar's stub." : "";
+        return `Baxter consents to the search. Among his belongings, you find a Hartford Philharmonic ticket dated July 7, 1982, for 8 p.m., Row R, Seat 7. Its time matches the preliminary estimate of Robner's death.${pair}`;
+      }
+      if (p === "Dunbar") {
+        found("LoBlo"); clue("dunbar_ticket_found"); found("concert ticket");
+        this._updateMurderTimeline();
+        const pair = s.clues.baxter_ticket_found ? " Row R, Seat 8 is beside Baxter's Seat 7; the two were seated together." : "";
+        return `Dunbar consents to the search. You find a bottle of LoBlo among her belongings and a Hartford Philharmonic ticket dated July 7, 1982, for 8 p.m., Row R, Seat 8. Its time matches the preliminary estimate of Robner's death.${pair}`;
+      }
       if (p === "Mrs. Robner") { found("Allergone"); return "Among Mrs. Robner's belongings is a bottle labeled Allergone."; }
       return `With ${p}'s consent, you find no relevant item.`;
     }
@@ -480,7 +505,7 @@ export class DeadlineGame {
     const namesBaxterAndDunbar = accused.includes("Baxter") && accused.includes("Dunbar");
     if (namesBaxterAndDunbar && accused.length > 2) {
       const extra = accused.filter((person) => !["Baxter", "Dunbar"].includes(person));
-      const complete = s.clues.poison_confirmed && s.found.LoBlo && s.clues.concert_contradiction && s.clues.focus_papers_read && s.clues.notepad_read;
+      const complete = s.clues.poison_confirmed && s.found.LoBlo && s.clues.murder_timeline && s.clues.focus_papers_read && s.clues.notepad_read;
       const extraNames = extra.join(" and ");
       const extraSubject = extra.length === 1 ? `${extraNames} is cleared` : `${extraNames} are cleared`;
       const message = complete
@@ -504,15 +529,15 @@ export class DeadlineGame {
       const named = accused.join(" and ");
       this._finish("false_accusation_suicide", `The inquiry finds no evidence connecting ${named} to a poisoning. The medicine and circumstances at the scene remain consistent with the initial suicide finding; without a supported accusation against the people responsible, the District Attorney closes the case as a suicide.`, 0, "The death is recorded as suicide");
     } else if (namesBaxterAndDunbar) {
-      const complete = s.clues.poison_confirmed && s.found.LoBlo && s.clues.concert_contradiction && s.clues.focus_papers_read && s.clues.notepad_read;
+      const complete = s.clues.poison_confirmed && s.found.LoBlo && s.clues.murder_timeline && s.clues.focus_papers_read && s.clues.notepad_read;
       const missingFocus = !s.clues.focus_papers_read;
       const missingNote = !s.clues.notepad_read;
       const weakMessage = missingFocus
         ? "The grand jury declines to indict. The Focus papers were not read into evidence, leaving Baxter's business scandal unconnected to Robner's death in the case presented."
         : missingNote
           ? "The jury declines to convict. The Focus case was not connected directly to Robner's death in the evidence presented."
-          : "The jury declines to convict. The evidence does not place Baxter near the grounds on the night of the murder; his symphony alibi was confirmed by several people.";
-      this._finish(complete ? "complete_solution" : "weak_case", complete ? "The prosecution presents the poison report, Dunbar's possession of LoBlo, the conflicting concert accounts, and the Focus papers and notepad impression linking Baxter to Robner's business dispute. The jury convicts Baxter and Dunbar of Robner's murder. The case is closed with both roles established by the evidence." : weakMessage, complete ? 1 : 0, complete ? "Case solved" : "The joint case is not proved");
+          : "The jury declines to convict. The evidence does not establish the timeline of the concert and Robner's death or connect that timeline to the poisoning.";
+      this._finish(complete ? "complete_solution" : "weak_case", complete ? "The prosecution presents the poison report, Dunbar's possession of LoBlo, the adjacent concert ticket stubs timed to Robner's death, the conflicting accounts of how Dunbar left the concert, and the Focus papers and notepad impression linking Baxter to Robner's business dispute. The jury convicts Baxter and Dunbar of Robner's murder. The case is closed with both roles established by the evidence." : weakMessage, complete ? 1 : 0, complete ? "Case solved" : "The joint case is not proved");
     } else {
       throw new Error("The accusation resolver received an impossible suspect set.");
     }
@@ -523,16 +548,22 @@ export class DeadlineGame {
     const s = this.state, privateMode = s.interviewee === person;
     s.asked[`${person}:${topic}`] = true;
     if (privateMode) s.asked[`${person}:${topic}:private`] = true;
-    const heardConcertAccount = (suspect) => ["alibi", "concert"].some((topic) => s.asked[`${suspect}:${topic}:private`]);
-    if (heardConcertAccount("Baxter") && heardConcertAccount("Dunbar")) s.clues.concert_contradiction = true;
+    const hasTicket = s.found["concert ticket"];
+    const ticketQuestion = ["concert", "concert ticket"].includes(topic);
+    // Alibi remains a recognizable query, but suspects refuse it; it does not
+    // expose or establish a timeline account.
+    if (topic === "alibi") return "“I can't help you with that.”";
+    if (hasTicket && ticketQuestion && ["Baxter", "Dunbar"].includes(person)) {
+      s.clues[`${person.toLowerCase()}_concert_account`] = true;
+    }
+    this._updateMurderTimeline();
     const answers = {
-      "Baxter:concert": privateMode ? "Ms. Dunbar was with me at the concert on the night that Marshall killed himself. She became ill at intermission and hired a car to take her back home. You see, Inspector, I know that Ms. Dunbar appreciates classical music, so I occasionally ask her along to my subscription series. I really should have told the other detective, but I didn't think it mattered." : "A marvelous concert! There were works by Beethoven, Sibelius, and Ravel. I never would've guessed you were interested in serious music, Inspector.",
-      "Dunbar:concert": privateMode ? "Oh, I...well, I guess I should tell you. You see, Mr. Baxter and I, we go together to concerts, only occasionally, you understand. We went that night, the night Marshall died. Then he took me home and that's it. I should have said something before, but I just didn't think it was important, and, well, I didn't think that the others should know we were seeing each other socially. Our...nobody knows about it, you know. Please don't say anything!" : "I don't know what you are talking about. I don't go in for concerts much, you know.",
-      "Baxter:alibi": privateMode ? "Ms. Dunbar was with me at the concert on the night that Marshall killed himself. She became ill at intermission and hired a car to take her back home. You see, Inspector, I know that Ms. Dunbar appreciates classical music, so I occasionally ask her along to my subscription series. I really should have told the other detective, but I didn't think it mattered." : "I can't help you there.",
-      "Dunbar:alibi": privateMode ? "Oh, I...well, I guess I should tell you. You see, Mr. Baxter and I, we go together to concerts, only occasionally, you understand. We went that night, the night Marshall died. Then he took me home and that's it. I should have said something before, but I just didn't think it was important, and, well, I didn't think that the others should know we were seeing each other socially. Our...nobody knows about it, you know. Please don't say anything!" : "I'm sorry, but I can't help you with that.",
+      "Baxter:concert": hasTicket ? "Dunbar was with me at the concert. She became ill and left at intermission in a hired car." : "A marvelous concert! There were works by Beethoven, Sibelius, and Ravel.",
+      "Dunbar:concert": hasTicket ? "Baxter and I attended the concert. He was with me, and he took me home after it ended." : "I don't know what you are talking about. I don't go in for concerts much, you know.",
+      "Baxter:concert ticket": hasTicket ? "Dunbar was with me at the concert. She became ill and left at intermission in a hired car." : "I can't help you with that.",
+      "Dunbar:concert ticket": hasTicket ? "Baxter and I attended the concert. He was with me, and he took me home after it ended." : "I can't help you with that.",
       "Dunbar:LoBlo": s.found.LoBlo ? "You found those among my things, didn't you? I've been taking them for months for my blood pressure. Are they important?" : "I'm sorry, but I can't help you with that.",
       "George:new will": s.found["new will"] ? "You should know what it says." : "I don't know anything about any new will.",
-      "George:alibi": "I haven't a clue.",
       "George:inheritance": "Dad always threatened to write a new will, but I guess he ran out of time.",
       "Mrs. Robner:Steven": s.shown["letter:Mrs. Robner"] ? "Steven is a close personal friend. We have known him for many years, and I visit his home frequently. Marshall knew of our friendship and didn't begrudge it in the slightest. My husband and I had a very trusting relationship. You may find the idea of trust difficult to understand, I suppose." : "I don't know who you mean. I have no friend named Steven.",
       "Mrs. Robner:letter": "I don't know much about that.",
@@ -561,7 +592,6 @@ export class DeadlineGame {
       "Mrs. Robner:Marshall Robner": "Marshall was my husband. He was quiet and reserved, and devoted much of his life to Robner Corp. I loved him, and I am very sorry to have lost him.",
       "Mrs. Robner:Dunbar": "I've always thought she was a bit too smug in her relationships around here. A bit above herself, if you see my meaning. After all, she's really just a glorified secretary. She acts as though she's part of the family, and she does get along well with almost everyone here. I swear, though, Marshall spent more time with her than me, lately. Um...not that I'm trying to imply that anything went on between them. Quite the contrary.",
       "Mrs. Robner:death": "I loved my husband, no matter what you may think. I am very sorry to have lost him.",
-      "Mrs. Robner:alibi": "I don't know much about that.",
       "Dunbar:Baxter": "Mr. Baxter? I see him often when he comes here on business, but I don't really know him that well. We keep to business when he comes around, and I hardly ever talk with him otherwise. He is, of course, an excellent executive, and poor Mr. Robner had every confidence in him.",
       "Dunbar:Mrs. Robner": "She's a lovely person. She and Marshall were always an odd couple: he was so quiet and reserved, and she's so lively and sociable. She's changed a lot over the last few years. She used to enjoy life here, but lately she's been restless and irritable, and now with Marshall's death, I'm worried about what may become of her.",
     };
@@ -570,10 +600,26 @@ export class DeadlineGame {
     return `“${answer || "I can't help you there."}”`;
   }
 
+  _updateMurderTimeline() {
+    const clues = this.state.clues;
+    if (clues.baxter_ticket_found && clues.dunbar_ticket_found &&
+        clues.baxter_concert_account && clues.dunbar_concert_account) {
+      clues.murder_timeline = true;
+    }
+  }
+
   _confront(a) {
     const match = a.match(/^show (.+) to (.+)$/); const [, evidence, person] = match;
     this.state.shown[`${evidence}:${person}`] = true;
     const privateMode = this.state.interviewee === person;
+    if (evidence === "concert ticket" && ["Baxter", "Dunbar"].includes(person)) {
+      this.state.clues[`${person.toLowerCase()}_concert_account`] = true;
+      this._updateMurderTimeline();
+      const response = person === "Baxter"
+        ? "Dunbar was with me at the concert. She became ill and left at intermission in a hired car."
+        : "Baxter and I attended the concert. He was with me, and he took me home after it ended.";
+      return `${privateMode ? "In private, " : "In front of the group, "}“${response}”`;
+    }
     const lines = {
       "LoBlo:Dunbar": "They're my pills. You found them among my things. I've been taking them for months for my blood pressure. What am I supposed to say?",
       "porcelain fragment:Dunbar": "He didn't commit suicide, then? But LoBlo, that's a pill I take for my blood pressure. I can tell what you're thinking, but I didn't, couldn't have done it. Why should I? Someone must have taken them, maybe George. He knew I used them.",

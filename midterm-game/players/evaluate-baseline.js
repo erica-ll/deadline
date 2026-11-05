@@ -18,7 +18,7 @@ for (const trial of TRIALS) {
     schemaVersion: 2, suiteId: SUITE_ID, runId, trialId: trial.trialId, scenarioId: trial.scenarioId, seed: trial.seed,
     startedAt: new Date().toISOString(), provider: "baseline", model: "fixed-evidence-policy",
     modelConfigId: "deterministic-baseline-v1", promptId: null, gameVersion: GAME_VERSION,
-    limits: { successfulActionLimit: 100, modelActionLimit: 0, effectiveEngineCallLimit: c.maxCalls, timeoutMs: null },
+    limits: { successfulActionLimit: 75, modelActionLimit: 0, effectiveEngineCallLimit: c.maxCalls, timeoutMs: null },
     bootstrap: { actions: c.bootstrap.map(({ action }) => action), successfulActions: c.bootstrap.length, submittedCalls: c.bootstrap.length, validation: c.checkpointValidation },
     initialObservation: c.initialObservation, events: [],
   };

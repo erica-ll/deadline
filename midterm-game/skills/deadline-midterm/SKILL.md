@@ -32,7 +32,7 @@ characters, endings, clues, or changed conditions on your own.
   to a human player, model player, baseline, or playtest console.
 - Invalid actions return a brief reason and leave game state and successful
   action count unchanged. Count submitted calls separately; cap successful
-  actions at 50, model calls at a configurable 60 by default, and each model
+  actions at 75, model calls at a configurable 100 by default, and each model
   request at a configurable 60 seconds by default. The current project
   instructions and evaluation plan are authoritative if limits change.
 - Implement the four specified rooms, four suspects, exact command forms,

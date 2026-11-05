@@ -1,17 +1,17 @@
 import { DeadlineGame } from "../src/engine.js";
 
-export const GAME_VERSION = "1.7.0";
+export const GAME_VERSION = "1.8.0";
 export const SUITE_ID = "robner-checkpoints-v2";
-export const MAX_ACTIONS = 100;
-export const DEFAULT_MAX_CALLS = 200;
+export const MAX_ACTIONS = 75;
+export const DEFAULT_MAX_CALLS = 100;
 export const DEFAULT_TIMEOUT_MS = 60_000;
 
-const interviewActions = ["Baxter", "Dunbar", "George", "Mrs. Robner"].flatMap((person) => [
-  `interview privately ${person}`,
-  `ask ${person} about alibi`,
-  ...(["Dunbar", "Mrs. Robner"].includes(person) ? [`search ${person}`] : []),
-  `return ${person}`,
-]);
+const interviewActions = [
+  "interview privately Baxter", "search Baxter", "ask Baxter about concert", "return Baxter",
+  "interview privately Dunbar", "search Dunbar", "ask Dunbar about concert", "return Dunbar",
+  "interview privately George", "return George",
+  "interview privately Mrs. Robner", "search Mrs. Robner", "return Mrs. Robner",
+];
 
 export const SCENARIOS = {
   S1: {
@@ -91,13 +91,16 @@ function validateState(scenario, game, observation) {
     );
   } else if (scenario.id === "S3") {
     const forbiddenEvidence = ["teacup", "saucer", "Ebullion", "Focus papers", "new will", "letter"];
-    const expectedPrivateAlibis = ["Baxter", "Dunbar", "George", "Mrs. Robner"].every((person) => s.asked[`${person}:alibi:private`] === true);
+    const allInterviewsReturned = ["Baxter", "Dunbar", "George", "Mrs. Robner"].every((person) =>
+      s.log.some(({ action, valid }) => action === `interview privately ${person}` && valid) &&
+      s.log.some(({ action, valid }) => action === `return ${person}` && valid));
     const visitedLibrary = s.log.some(({ action }) => action === "go to library" || ["inspect body", "inspect teacup", "inspect saucer", "inspect Ebullion", "inspect desk", "inspect notepad", "inspect bookcase"].includes(action));
     checks.push(
-      check("all four private alibi interviews are complete", expectedPrivateAlibis),
+      check("all four private interviews are complete", allInterviewsReturned),
       check("no Library visits or evidence", !visitedLibrary && forbiddenEvidence.every((item) => !evidence.has(item))),
       check("Garden fragment is cleaned and analyzed", evidence.has("porcelain fragment") && evidence.has("new chemical") && s.clues.fragment_cleaned && s.clues.fragment_analyzed),
       check("Dunbar and Mrs. Robner medicines were found by private search", s.log.some(({ action }) => action === "search Dunbar") && s.log.some(({ action }) => action === "search Mrs. Robner") && evidence.has("LoBlo") && evidence.has("Allergone")),
+      check("concert tickets establish the murder timeline", evidence.has("concert ticket") && s.clues.murder_timeline),
       check("no medicine comparison or accusation", !s.clues.poison_confirmed && s.accusations.length === 0),
       check("no accusation or shown evidence", Object.keys(s.shown).length === 0),
     );

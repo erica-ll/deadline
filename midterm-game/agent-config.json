@@ -1,12 +1,18 @@
 {
   "game": {
+    "game_version": "1.8.0",
     "interface": "players receive observe('detective') including currently available action-word heads, then submit guessed complete actions to step(); legal_actions() is reserved for engine-level checks and is not sent to players",
-    "successful_action_limit": 50,
-    "default_model_call_limit": 60,
+    "successful_action_limit": 75,
+    "default_model_call_limit": 100,
     "default_call_timeout_ms": 60000
   },
   "model_player": {
     "entrypoint": "players/model-player.js",
+    "evaluation_provider": "openai",
+    "evaluation_model": "gpt-6-luna",
+    "model_config_id": "robner-checkpoints-v2-config-1",
+    "prompt_id": "robner-action-heads-v6-rejection-history",
+    "context_protocol_id": "engine-observation-history-v3",
     "providers": ["openai", "anthropic", "gemini"],
     "inputs": ["player-visible observation including action-word heads but no complete actions", "feedback on the previous attempted action"],
     "tools": [],

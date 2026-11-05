@@ -18,5 +18,5 @@ export async function loadLocalEnv() {
 
 export function modelConfig(provider = "openai") {
   const prefix = provider.toUpperCase();
-  return { provider, model: process.env[`${prefix}_MODEL`] || "", apiKey: process.env[`${prefix}_API_KEY`] || "", baseUrl: process.env[`${prefix}_BASE_URL`] || undefined, modelConfigId: process.env.MODEL_CONFIG_ID || "robner-checkpoints-v2-config-2", maxCalls: Number(process.env.MAX_MODEL_CALLS || 200), timeoutMs: Number(process.env.MODEL_TIMEOUT_MS || 60_000) };
+  return { provider, model: process.env[`${prefix}_MODEL`] || "", apiKey: process.env[`${prefix}_API_KEY`] || "", baseUrl: process.env[`${prefix}_BASE_URL`] || undefined, modelConfigId: process.env.MODEL_CONFIG_ID || "robner-checkpoints-v2-config-1", maxCalls: Number(process.env.MAX_MODEL_CALLS || 100), timeoutMs: Number(process.env.MODEL_TIMEOUT_MS || 60_000) };
 }

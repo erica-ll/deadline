@@ -6,8 +6,8 @@ import { chooseModelAction } from "../players/model-player.js";
 
 test("reset, observations, and legal actions preserve role boundaries", () => {
   const game = new DeadlineGame();
-  assert.equal(game.limits.maxActions, 100);
-  assert.equal(game.limits.maxCalls, 200);
+  assert.equal(game.limits.maxActions, 75);
+  assert.equal(game.limits.maxCalls, 100);
   const observation = game.reset(123);
   assert.equal(observation.room, "living room");
   assert.equal(observation.successfulActions, 0);
@@ -107,12 +107,13 @@ test("every discovered evidence item can be inspected from the evidence record",
     "go to library", "inspect teacup", "inspect saucer", "inspect Ebullion",
     "inspect bookcase", "search bookcase", "open safe", "read Focus papers", "read new will",
     "go to living room", "inspect letter", "read letter",
+    "interview privately Baxter", "search Baxter", "return Baxter",
     "interview privately Dunbar", "search Dunbar", "return Dunbar",
     "interview privately Mrs. Robner", "search Mrs. Robner", "inspect Allergone", "ask Mrs. Robner about Allergone", "return Mrs. Robner",
     "go to garden", "search holes", "clean fragment", "analyze fragment",
   ];
   for (const action of discoveryActions) assert.equal(game.step("detective", action).valid, true, action);
-  const evidenceTargets = ["teacup", "saucer", "Ebullion", "Focus papers", "new will", "letter", "LoBlo", "Allergone", "fragment", "new chemical"];
+  const evidenceTargets = ["teacup", "saucer", "Ebullion", "Focus papers", "new will", "letter", "LoBlo", "Allergone", "concert ticket", "fragment", "new chemical"];
   for (const target of evidenceTargets) {
     const action = `inspect ${target}`;
     assert.equal(game.legal_actions("detective").includes(action), true, action);
@@ -167,15 +168,16 @@ test("articles are optional in commands and question topics", () => {
   assert.match(will.observe("detective").history.at(-1).message, /prepared a new will/i);
 });
 
-test("private interviews suggest the alibi question and accept alibi phrasing variants", () => {
+test("private interviews do not suggest alibis; alibi phrasing is accepted but refused", () => {
   for (const [person, pronoun] of [["Baxter", "his"], ["Dunbar", "her"], ["George", "his"], ["Mrs. Robner", "her"]]) {
     const game = new DeadlineGame();
     const interview = game.step("detective", `interview privately ${person}`);
     assert.equal(interview.valid, true);
-    assert.match(interview.message, /start by asking about their alibi/i);
+    assert.doesNotMatch(interview.message, /start by asking about their alibi/i);
     for (const phrase of ["alibi", "the alibi", `${pronoun} alibi`]) {
       const result = game.step("detective", `ask ${person} about ${phrase}`);
       assert.equal(result.valid, true, `${person}: ${phrase}`);
+      assert.match(result.message, /can't help you with that/i);
     }
   }
 });
@@ -528,35 +530,36 @@ test("the sugar bowl is not an interactive evidence action in either room", () =
   assert.equal(game.legal_actions("detective").includes("analyze sugar bowl"), false);
 });
 
-test("private concert accounts expose the hired-car versus ride-home mismatch", () => {
+test("ticket searches reveal adjacent seats and accounts establish the murder timeline", () => {
   const game = new DeadlineGame();
   game.step("detective", "interview privately Baxter");
+  const baxterTicket = game.step("detective", "search Baxter").message;
+  assert.match(baxterTicket, /July 7, 1982, for 8 p\.m\./);
+  assert.match(baxterTicket, /matches.*death/i);
   const baxter = game.step("detective", "ask Baxter about concert").message;
   game.step("detective", "return Baxter");
   game.step("detective", "interview privately Dunbar");
+  const dunbarTicket = game.step("detective", "search Dunbar").message;
+  assert.match(dunbarTicket, /beside Baxter's Seat 7/i);
   const dunbar = game.step("detective", "ask Dunbar about concert").message;
-  assert.match(baxter, /hired a car/);
-  assert.doesNotMatch(baxter, /ticket stub/i);
-  assert.match(dunbar, /he took me home/);
-  assert.match(dunbar, /Then he took me home/);
+  assert.equal(game.state.clues.murder_timeline, true);
+  assert.match(baxter, /Dunbar was with me.*left at intermission in a hired car/);
+  assert.match(dunbar, /he took me home after it ended/);
+  assert.ok(game.observe("detective").evidence.includes("concert ticket"));
 });
 
-test("private alibi topic reaches the same bounded source-account route as concert", () => {
+test("alibi refusal cannot establish a concert account or murder timeline", () => {
   const game = new DeadlineGame();
-  const actions = [
-    "interview privately Baxter", "ask Baxter about alibi", "return Baxter",
-    "interview privately Dunbar", "ask Dunbar about alibi", "search Dunbar", "return Dunbar",
-    "go to library", "inspect notepad", "shade notepad", "inspect bookcase", "search bookcase", "open safe", "read Focus papers",
-    "go to kitchen", "count china", "go to garden", "inspect holes", "search holes", "clean fragment", "analyze fragment", "compare new chemical with LoBlo", "go to living room", "accuse Baxter and Dunbar",
-  ];
-  for (const action of actions) assert.equal(game.step("detective", action).valid, true, action);
-  assert.equal(game.outcome().status, "choice");
-  assert.equal(game.step("detective", "close the case").valid, true);
-  assert.equal(game.outcome().reason, "complete_solution");
+  game.step("detective", "interview privately Baxter");
+  const refusal = game.step("detective", "ask Baxter about alibi");
+  assert.equal(refusal.valid, true);
+  assert.match(refusal.message, /can't help you with that/i);
+  assert.equal(game.state.clues.baxter_concert_account, undefined);
+  assert.equal(game.state.clues.murder_timeline, undefined);
 });
 
 test("interview replies distinguish quoted speech from narration and cover every public topic", () => {
-  const game = new DeadlineGame({ maxActions: 100 });
+  const game = new DeadlineGame({ maxActions: 75 });
   const questions = game.legal_actions("detective").filter((action) => action.startsWith("ask "));
   for (const question of questions) {
     const response = game.step("detective", question).message;
@@ -715,8 +718,8 @@ test("continue investigating preserves earlier accusations for the eventual case
 test("opening the safe without reading Focus papers does not satisfy the strong-case requirement", () => {
   const game = new DeadlineGame();
   const actions = [
-    "interview privately Baxter", "ask Baxter about concert", "return Baxter",
-    "interview privately Dunbar", "ask Dunbar about concert", "search Dunbar", "return Dunbar",
+    "interview privately Baxter", "search Baxter", "ask Baxter about concert", "return Baxter",
+    "interview privately Dunbar", "search Dunbar", "ask Dunbar about concert", "return Dunbar",
     "go to library", "inspect notepad", "shade notepad", "inspect bookcase", "search bookcase", "open safe",
     "go to garden", "search holes", "clean fragment", "analyze fragment", "compare new chemical with LoBlo", "go to living room",
     "accuse Baxter and Dunbar",
@@ -772,22 +775,22 @@ test("successful-action and submitted-call episode limits end explicitly", () =>
   assert.equal(steps.outcome().reason, "episode_limit");
   assert.equal(steps.outcome().successfulActions, 2);
 
-  const calls = new DeadlineGame({ maxActions: 100, maxCalls: 2 });
+  const calls = new DeadlineGame({ maxActions: 75, maxCalls: 2 });
   calls.step("detective", "not an action");
   calls.step("detective", "still not an action");
   assert.equal(calls.outcome().reason, "model_call_limit");
   assert.equal(calls.outcome().successfulActions, 0);
 });
 
-test("the 100th successful action accusation ends before exposing a choice", () => {
-  const game = new DeadlineGame({ maxActions: 100, maxCalls: 120 });
-  for (let i = 0; i < 99; i += 1) {
+test("the 75th successful action accusation ends before exposing a choice", () => {
+  const game = new DeadlineGame({ maxActions: 75, maxCalls: 100 });
+  for (let i = 0; i < 74; i += 1) {
     const result = game.step("detective", "ask Baxter about alibi");
     assert.equal(result.valid, true);
   }
   const accusation = game.step("detective", "accuse Baxter");
   assert.equal(accusation.valid, true);
-  assert.equal(accusation.observation.successfulActions, 100);
+  assert.equal(accusation.observation.successfulActions, 75);
   assert.deepEqual(accusation.observation.accusations, ["Baxter"]);
   assert.equal(accusation.outcome.reason, "episode_limit");
   assert.deepEqual(accusation.observation.choices, []);
@@ -797,7 +800,7 @@ test("the 100th successful action accusation ends before exposing a choice", () 
 });
 
 test("a final-call accusation ends instead of leaving an unusable choice", () => {
-  const game = new DeadlineGame({ maxActions: 100, maxCalls: 1 });
+  const game = new DeadlineGame({ maxActions: 75, maxCalls: 1 });
   const accusation = game.step("detective", "accuse Dunbar");
   assert.equal(accusation.valid, true);
   assert.deepEqual(accusation.observation.accusations, ["Dunbar"]);

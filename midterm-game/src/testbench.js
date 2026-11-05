@@ -35,7 +35,7 @@ function loadStage(selected) {
   stage = selected;
   presetError = "";
   lastResult = null;
-  game = new DeadlineGame({ maxActions: stage.maxActions ?? 100, maxCalls: 200 });
+  game = new DeadlineGame({ maxActions: stage.maxActions ?? 75, maxCalls: 100 });
   game.reset(42);
   for (const action of stage.actions ?? []) {
     const result = game.step("detective", action);

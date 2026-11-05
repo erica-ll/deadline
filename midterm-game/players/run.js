@@ -39,9 +39,9 @@ const arg = (name, fallback) => {
 };
 const provider = arg("--provider", "baseline").toLowerCase();
 const seed = Number(arg("--seed", "1"));
-const maxCalls = Number(process.env.MAX_MODEL_CALLS || 200);
+const maxCalls = Number(process.env.MAX_MODEL_CALLS || 100);
 const timeoutMs = Number(process.env.MODEL_TIMEOUT_MS || 60_000);
-const maxActions = 100;
+const maxActions = 75;
 const game = new DeadlineGame({ maxActions, maxCalls });
 game.reset(seed);
 const trace = { seed, provider, model: provider === "baseline" ? "fixed-evidence-policy" : process.env[`${provider.toUpperCase()}_MODEL`] || null, maxActions, maxCalls, timeoutMs, calls: [], startedAt: new Date().toISOString() };

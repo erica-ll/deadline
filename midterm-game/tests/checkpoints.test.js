@@ -14,18 +14,18 @@ test("the six declared trial IDs map to the three paired deterministic scenarios
     ["S1-T2", "S1", 1102], ["S2-T2", "S2", 2202], ["S3-T2", "S3", 3302],
   ]);
   assert.equal(SCENARIOS.S2.actions.length, 17);
-  assert.equal(SCENARIOS.S3.actions.length, 25);
+  assert.equal(SCENARIOS.S3.actions.length, 24);
 });
 
 test("S1, S2, and S3 checkpoint preludes are accepted and preserve visible history and limits", () => {
-  for (const [scenarioId, seed, expectedActions, room] of [["S1", 1101, 0, "living room"], ["S2", 2201, 17, "library"], ["S3", 3301, 25, "garden"]]) {
+  for (const [scenarioId, seed, expectedActions, room] of [["S1", 1101, 0, "living room"], ["S2", 2201, 17, "library"], ["S3", 3301, 24, "garden"]]) {
     const c = buildCheckpoint(scenarioId, seed);
     assert.equal(c.checkpointValidation.passed, true, scenarioId);
     assert.equal(c.bootstrap.length, expectedActions);
     assert.equal(c.initialObservation.successfulActions, expectedActions);
     assert.equal(c.initialObservation.room, room);
     assert.equal(c.initialObservation.history.length, expectedActions);
-    assert.equal(c.maxCalls, expectedActions + 200);
+    assert.equal(c.maxCalls, expectedActions + 100);
     assert.equal("legal_actions" in c.initialObservation, false);
     assert.equal("paths" in c.initialObservation, false);
     if (scenarioId === "S2") {
@@ -33,14 +33,14 @@ test("S1, S2, and S3 checkpoint preludes are accepted and preserve visible histo
       assert.equal(chooseBaselineAction(c.initialObservation), "go to living room");
     }
     if (scenarioId === "S3") {
-      assert.ok(c.initialObservation.history.some(({ action }) => action === "ask Baxter about alibi"));
+      assert.ok(c.initialObservation.history.some(({ action }) => action === "ask Baxter about concert"));
       assert.ok(c.initialObservation.history.some(({ action }) => action === "analyze fragment"));
       assert.ok(c.initialObservation.evidence.includes("new chemical"));
       assert.ok(c.initialObservation.history.some(({ action, message }) => action === "search Dunbar" && /LoBlo/.test(message)));
       assert.ok(c.initialObservation.history.some(({ action, message }) => action === "search Mrs. Robner" && /Allergone/.test(message)));
       assert.ok(c.initialObservation.evidence.includes("LoBlo"));
       assert.ok(c.initialObservation.evidence.includes("Allergone"));
-      assert.equal(chooseBaselineAction(c.initialObservation), "go to living room");
+      assert.equal(chooseBaselineAction(c.initialObservation), "go to library");
     }
   }
   assert.throws(() => buildCheckpoint("S2", 1101), /does not use seed/);

@@ -15,7 +15,7 @@ function publicSnapshot(run) {
     trial: run.current ? { trialId: run.current.trialId, scenarioId: run.current.scenarioId, seed: run.current.seed } : null,
     provider: run.config.provider, model: run.config.model, modelConfigId: run.config.modelConfigId,
     gameVersion: GAME_VERSION,
-    limits: run.current ? { maxActions: 100, bootstrapActions: run.current.bootstrap.length, modelActionLimit: run.config.maxCalls, effectiveMaxCalls: run.current.maxCalls } : null,
+    limits: run.current ? { maxActions: 75, bootstrapActions: run.current.bootstrap.length, modelActionLimit: run.config.maxCalls, effectiveMaxCalls: run.current.maxCalls } : null,
     initialObservation: run.current?.initialObservation || null,
     observation: run.current?.game.observe("detective") || null,
     outcome: run.current?.game.outcome() || null,
@@ -95,7 +95,7 @@ export class TrialRunner {
       schemaVersion: 2, suiteId: "robner-checkpoints-v2", runId: this.runId, trialId: c.trialId, scenarioId: c.scenarioId, seed: c.seed,
       startedAt: c.startedAt, finishedAt: c.finishedAt || null, provider: this.config.provider, model: this.config.model,
       modelConfigId: this.config.modelConfigId, promptId: MODEL_PROMPT_ID, contextProtocolId: MODEL_CONTEXT_ID, gameVersion: GAME_VERSION,
-      limits: { successfulActionLimit: 100, modelActionLimit: this.config.maxCalls, effectiveEngineCallLimit: c.maxCalls, timeoutMs: this.config.timeoutMs },
+      limits: { successfulActionLimit: 75, modelActionLimit: this.config.maxCalls, effectiveEngineCallLimit: c.maxCalls, timeoutMs: this.config.timeoutMs },
       bootstrap: { actions: c.bootstrap.map(({ action }) => action), successfulActions: c.bootstrap.length, submittedCalls: c.bootstrap.length, validation: c.checkpointValidation },
       initialObservation: c.initialObservation, events: c.events,
       summary: { modelCalls: c.modelCalls, playerSubmittedCalls: c.modelCalls, playerActions: c.events.filter((event) => event.action).length, successfulPlayerActions: c.successfulPlayerActions, invalidPlayerActions: c.invalidPlayerActions, finalOutcome: c.game.outcome() },
@@ -109,7 +109,7 @@ export class TrialRunner {
 
 export function validateSuiteCheckpoints(trials) {
   return trials.map((trial) => {
-    const checkpoint = buildCheckpoint(trial.scenarioId, trial.seed, { maxCalls: 200 });
+    const checkpoint = buildCheckpoint(trial.scenarioId, trial.seed, { maxCalls: 100 });
     return { trialId: trial.trialId, scenarioId: trial.scenarioId, seed: trial.seed, passed: checkpoint.checkpointValidation.passed, checks: checkpoint.checkpointValidation.checks };
   });
 }

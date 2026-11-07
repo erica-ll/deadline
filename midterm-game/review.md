@@ -1,8 +1,80 @@
 # Independent review findings
 
-**Current review date:** 2026-11-04  
-**Current review version:** 4.0  
-**Current overall result:** pass
+**Current review date:** 2026-11-07  
+**Current review version:** 5.0  
+**Current overall result:** pass with documentation and coverage notes
+
+## Review 5.0 summary
+
+I rechecked the updated action rules against the current engine and deterministic tests. The 75-successful-action cap and the ticket-based murder timeline are implemented in the engine and runner. I found no game-state or ending-transition defect in these changed paths. The earlier query-limit and suspect-name changes remain outside this pass's findings.
+
+`npm test` passed all 57 tests. I did not invoke a model API or read `.env`. Ticket searches, both concert accounts, the timeline clue, the alibi refusal, the complete solution, and an accusation on action 75 are exercised. The ticket-show route is implemented and statically traced, but has no direct deterministic test. I also found one stale, internally contradictory action-limit sentence in the story plan.
+
+## Branch and boundary table
+
+| Starting conditions and key choices | Expected state change or ending | Verification |
+|---|---|---|
+| Interview Baxter and search him; interview Dunbar and search her | Both ticket-search flags; one canonical `concert ticket` evidence entry; Dunbar search also finds LoBlo | Executed by `ticket searches reveal adjacent seats and accounts establish the murder timeline` |
+| Ask both suspects about the concert after a ticket is found | Each account flag is set; together with both search flags, sets `murder_timeline` | Executed for Baxter-then-Dunbar; reverse order is supported by static tracing, not separately executed |
+| Ask about alibi | Valid refusal; no concert-account or timeline clue | Executed by `alibi refusal cannot establish a concert account or murder timeline` |
+| Show the found ticket to Baxter or Dunbar | Account flag is set for that suspect; their distinct response is returned | Static tracing of `_showPairs`, `_isLegal`, and `_confront`; no direct test found |
+| Close a joint accusation with all required evidence | `complete_solution`; requires poison confirmation, LoBlo, timeline clue, Focus papers read, and notepad read | Executed by baseline completion and complete-solution test |
+| Close a joint accusation without required evidence | `weak_case` | Executed by weak-joint-case test |
+| Successful action 75 is an accusation | `episode_limit`; accusation persists, no close/continue choice | Executed by 75th-action boundary test |
+| Model call limit is reached on an accusation | `model_call_limit`; terminal outcome, no pending choice | Existing deterministic regression passes; rechecked as part of the suite |
+
+## Dependency checks for the changed rules
+
+| Rule / precondition | Enforcement and player-visible result | Downstream dependency | Verification |
+|---|---|---|---|
+| `search Baxter` or `search Dunbar` requires a private interview with that suspect. | `_isLegal` only accepts the current interviewee's search (`src/engine.js:335–340`); `_apply` records the corresponding ticket-found flag and response (`467–477`). Dunbar's search also finds LoBlo. | Each ticket-found flag is required for `murder_timeline`; LoBlo is required for the poison and joint-ending checks. | Ticket searches and response details executed. Public search refusal remains covered by a regression test. |
+| Ticket evidence may be re-inspected once found; the description reflects which stubs have been discovered. | Evidence inspection checks `found`; `_apply` returns a one-stub or two-stub description (`src/engine.js:413–431`). | Conveys date/time and seat relationship without itself setting the full timeline clue. | General found-evidence inspection test executes ticket inspection; seat-specific variants are statically traced. |
+| Concert/ticket questions produce distinct accounts only after a ticket is found; alibi remains a refusal. | `_answer` checks evidence and topic, sets account flags, returns distinct responses, and calls `_updateMurderTimeline` (`src/engine.js:546–560`). | Both account flags plus both ticket flags set the timeline clue (`603–608`). | Both account route and alibi negative case execute; ticket-topic alias variants are statically traced. |
+| Showing the ticket to Baxter or Dunbar requires found ticket and present suspect. | `_showPairs` lists the two supported pairings; legality checks evidence/presence; `_confront` sets the account flag and reevaluates timeline (`src/engine.js:311–312`, `335–347`, `611–621`). | Can supply either account through showing instead of asking. | Static only; smallest missing test is a ticket-found setup followed by showing it separately to each suspect and asserting the individual account flag/response. |
+| Strong joint case requires all five evidence conditions, including the ticket-derived timeline. | `_closeCase` tests `poison_confirmed`, found LoBlo, `murder_timeline`, `focus_papers_read`, and `notepad_read` (`src/engine.js:531–540`). | Complete conviction versus weak joint-case ending. | Full route and weak route executed. A route missing only ticket/account timeline is not separately tested. |
+| Episode cap is 75 successful actions; action limit takes priority on an accusation. | Constructor default is 75 (`src/engine.js:161–164`); `step` increments accepted actions and finishes at the cap (`243–268`). Runner and checkpoint constants also use 75. | Terminal `episode_limit` with no accusation choice. | Exact 75th-action accusation test executed; full suite passes. |
+
+## Findings
+
+### Low: story plan contains conflicting action-limit wording
+
+**File/line:** [`../MIDTERM_STORY_RECONSTRUCTION_PLAN.md`](../MIDTERM_STORY_RECONSTRUCTION_PLAN.md#L236), lines 236–249.  
+**Affected path:** Project documentation for the successful-action episode limit.  
+**Expected:** One settled action limit throughout the plan. The current implementation-facing rules, project instructions, runner, and later sentences in this section specify 75.  
+**Actual:** The section opens with “Set the first-pass limit at 50 successful player actions,” then says the episode ends on action 75 and that the limit is 75.  
+**Reason:** This is a documentation inconsistency; the code and test use 75. Update the opening sentence to 75 or label 50 explicitly as historical.
+
+### Coverage gap: ticket confrontation path is not directly tested
+
+**File/line:** [`src/engine.js`](src/engine.js#L611), `_confront`; ticket pairs are listed at [`src/engine.js`](src/engine.js#L311).  
+**Affected path:** After finding a ticket, showing it to Baxter or Dunbar as an alternative to asking about the concert.  
+**Expected:** A valid show action returns that suspect's distinct account, records the account clue, and contributes to `murder_timeline` once both ticket searches and both accounts are present.  
+**Actual:** Static tracing shows the implementation does this; no test directly submits `show Baxter concert ticket` or `show Dunbar concert ticket`.  
+**Smallest recommended test:** Establish both ticket-found flags, show the ticket to each suspect in separate runs or sequentially across interviews, and assert both account flags and the timeline clue. This is a coverage recommendation, not an observed defect.
+
+## Paths by verification type
+
+**Verified by execution:** 57 deterministic tests passed. In particular, ticket search/account sequence, alibi refusal, completed baseline solution, weak joint case, ticket evidence inspection, and action-75 accusation boundary execute.
+
+**Verified only by static tracing:** Showing a ticket to either suspect; reverse order of ticket searches/accounts; each individual missing-timeline prerequisite; exact show-ticket response/account state. The shared implementation is monotonic and invokes the same timeline updater from searches, questions, and show actions.
+
+**Still unverified:** The show-ticket path has no direct deterministic test, so parser/legal-action integration and that downstream clue route are not executed together. No live provider/API play was run in this review.
+
+## Writing-style flag
+
+The ticket searches and timeline dialogue are plain and easy to understand. The joint-case outcome reads like a concise prosecution summary rather than a dramatized detective scene, but the evidence sequence is clear. No newly reviewed chunk was too artistic or too simple to follow.
+
+## Checks performed
+
+- `npm test` — **57 passed, 0 failed** on 2026-11-07.
+- Static comparison of the updated action dictionary, story plan, project instructions, engine, checkpoints, runner, and relevant tests.
+- No API calls, `.env` access, game-code edits, or test edits.
+
+---
+
+**Review date:** 2026-11-04  
+**Review version:** 4.0  
+**Overall result:** pass
 
 ## Review 4.0 summary
 

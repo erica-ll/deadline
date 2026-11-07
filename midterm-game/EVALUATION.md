@@ -79,7 +79,12 @@ invoice.
   `traces/evaluation-baseline/`; they are not the current paired baselines.
 - Two early single-trial model diagnostics under older prompt/context/game
   settings are also retained. They are not scored suite trials.
-- No human playtest observation is claimed here.
+- A classmate provided written feedback after a roughly 40-minute solo session
+  on November 5; the notes are linked from [`PEER-PLAYTEST-NOTES.md`](PEER-PLAYTEST-NOTES.md).
+  The playtester used browser translation and received hints about interview
+  commands and searching described objects; the session was not observed by
+  the project author. Treat the feedback as useful qualitative evidence, with
+  those limits in mind.
 
 ## Reproduction and limits
 

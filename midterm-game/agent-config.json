@@ -29,7 +29,7 @@
   },
   "implementation_skill": "skills/deadline-midterm/SKILL.md",
   "independent_review": {
-    "status": "not yet performed",
+    "status": "performed against the 75-successful-action version",
     "artifact": "review.md"
   }
 }

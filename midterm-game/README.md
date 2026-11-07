@@ -258,42 +258,70 @@ gh run list --workflow setup-check.yml --limit 5
 Local tests do not make a live model API request. A workflow run is only
 reported as green after GitHub provides that evidence.
 
-## Scope and source map
+## Peer playtest notes
+
+The detailed feedback received about The Robner Case is in
+[`peer-feedback.md`](peer-feedback.md), with a summary and submission index in
+[`PEER-PLAYTEST-NOTES.md`](PEER-PLAYTEST-NOTES.md).
+
+## Research & Critical Depth (Rubric 1a): Rule/Source Map
+
+The rubric's evidence labels are `code`, `manual`, `observed`, `assumed`, and
+`design`. Every rule below is labeled `design`: it is a rule deliberately
+selected or adapted for this bounded version. The label does not claim that
+the implementation reproduces the original game's code. The approved
+specifications define the implemented rules; the implementation and test
+locators show where they are enforced and checked. Test names identify
+representative checks, not exhaustive testing of every invalid action
+combination.
+
+| Implemented rule | Evidence label | Design/source locator | Enforcement and test locator |
+| --- | --- | --- | --- |
+| Initial state, four suspects, four rooms, officer supervision, private-interview scene, and Mrs. Robner's non-acting anxious presentation | `design` | [Story plan — Bounded cast and room model](../MIDTERM_STORY_RECONSTRUCTION_PLAN.md#bounded-cast-and-room-model); [Action dictionary — State and movement](../ACTION_DICTIONARY_AND_RULES.md#state-and-movement) | [Engine: `reset`](src/engine.js#L167) and [`observe`](src/engine.js#L179); [test: role boundaries](tests/engine.test.js#L7) |
+| Room destinations, room-entry counts, and letter delivery on the second actual Living Room entry | `design` | [Action dictionary — State and movement](../ACTION_DICTIONARY_AND_RULES.md#state-and-movement); [Action dictionary — Living Room](../ACTION_DICTIONARY_AND_RULES.md#living-room) | [Engine: `step`](src/engine.js#L243) and [`_apply`](src/engine.js#L392); [test: second-entry letter](tests/engine.test.js#L230); [test: interview return does not count as entry](tests/engine.test.js#L258) |
+| Inspecting and reading the delivered letter; keeping its arrival notice until it is read | `design` | [Action dictionary — State and movement](../ACTION_DICTIONARY_AND_RULES.md#state-and-movement); [Action dictionary — Living Room](../ACTION_DICTIONARY_AND_RULES.md#living-room) | [Engine: `_isLegal`](src/engine.js#L315) and [`_apply`](src/engine.js#L392); [test: second-entry letter and read state](tests/engine.test.js#L230) |
+| Re-inspecting only found evidence from any room | `design` | [Action dictionary — Command forms](../ACTION_DICTIONARY_AND_RULES.md#command-forms); [Action dictionary — Room-specific object actions](../ACTION_DICTIONARY_AND_RULES.md#room-specific-object-actions) | [Engine: `evidenceInspectionTarget`](src/engine.js#L76), [`_isLegal`](src/engine.js#L315), and [`_apply`](src/engine.js#L392); [test: discovered evidence inspection](tests/engine.test.js#L104) |
+| Accepted command forms, optional articles, suspect-name aliases, action heads, and action normalization | `design` | [Action dictionary — Command forms](../ACTION_DICTIONARY_AND_RULES.md#command-forms) | [Engine: `canonicalPerson`](src/engine.js#L59), [`normalizeAction`](src/engine.js#L107), and [`legal_action_words`](src/engine.js#L220); [tests: suspect aliases](tests/engine.test.js#L41) and [room names](tests/engine.test.js#L81) |
+| Context and prerequisite validation; rejected actions record feedback without changing investigation facts or successful-action count | `design` | [Action dictionary — Command forms](../ACTION_DICTIONARY_AND_RULES.md#command-forms); [Action dictionary — Invalid commands and failure behavior](../ACTION_DICTIONARY_AND_RULES.md#invalid-commands-and-failure-behavior) | [Engine: `_isLegal`](src/engine.js#L315), [`_invalidReason`](src/engine.js#L373), and [`step`](src/engine.js#L243); [test: legal versus illegal state change](tests/engine.test.js#L185); [test: representative invalid prerequisites](tests/engine.test.js#L307) |
+| Library body, teacup, saucer, Ebullion, desk, and notepad observations; shading the notepad | `design` | [Action dictionary — Library](../ACTION_DICTIONARY_AND_RULES.md#library); [Story plan — Evidence chain and likely suspicion](../MIDTERM_STORY_RECONSTRUCTION_PLAN.md#evidence-chain-and-likely-suspicion) | [Engine: `_isLegal`](src/engine.js#L315) and [`_apply`](src/engine.js#L392); [tests: Library descriptions](tests/engine.test.js#L348) and [source-supported Ebullion details](tests/engine.test.js#L335) |
+| Independent bookcase/safe discovery; opening exposes documents, while reading Focus papers and the new will reveals their contents | `design` | [Action dictionary — Library](../ACTION_DICTIONARY_AND_RULES.md#library); [Story plan — Hidden safe: keep the bookshelf chain](../MIDTERM_STORY_RECONSTRUCTION_PLAN.md#hidden-safe-keep-the-bookshelf-chain) | [Engine: `_isLegal`](src/engine.js#L315) and [`_apply`](src/engine.js#L392); [tests: neutral safe opening](tests/engine.test.js#L290), [safe independent of notepad](tests/engine.test.js#L493), and [Focus papers prerequisite](tests/engine.test.js#L718) |
+| Kitchen china inspection, search, and count | `design` | [Action dictionary — Kitchen](../ACTION_DICTIONARY_AND_RULES.md#kitchen) | [Engine: `_apply`](src/engine.js#L392); [test: Kitchen description](tests/engine.test.js#L362) |
+| Garden holes and ladder inspection, fragment search, cleaning, analysis, and porcelain aliases | `design` | [Action dictionary — Garden](../ACTION_DICTIONARY_AND_RULES.md#garden) | [Engine: `_isLegal`](src/engine.js#L315) and [`_apply`](src/engine.js#L392); [tests: fragment prerequisite](tests/engine.test.js#L90), [porcelain aliases](tests/engine.test.js#L391), and [analysis result](tests/engine.test.js#L576) |
+| Finding LoBlo and Allergone, comparing either with the new chemical in either discovery order, and the resulting positive or negative lab result | `design` | [Action dictionary — Garden](../ACTION_DICTIONARY_AND_RULES.md#garden); [Action dictionary — Interview and search rules](../ACTION_DICTIONARY_AND_RULES.md#interview-and-search-rules) | [Engine: `_isLegal`](src/engine.js#L315) and [`_apply`](src/engine.js#L392); [tests: discovery-order comparison](tests/engine.test.js#L420) and [Allergone regression](tests/engine.test.js#L611) |
+| Public questions, private interviews, interview return, allowed topics, refusals, consensual searches, ticket stubs, and murder-timeline evidence | `design` | [Action dictionary — Suspect questions and interviews](../ACTION_DICTIONARY_AND_RULES.md#suspect-questions-and-interviews); [Action dictionary — Interview and search rules](../ACTION_DICTIONARY_AND_RULES.md#interview-and-search-rules) | [Engine: `_isLegal`](src/engine.js#L315), [`_answer`](src/engine.js#L546), and [`_updateMurderTimeline`](src/engine.js#L603); [tests: alibi refusal](tests/engine.test.js#L171), [ticket timeline](tests/engine.test.js#L533), and [interview privacy](tests/engine.test.js#L258) |
+| Evidence confrontation pairs, public/private response differences, and the rule that showing evidence does not by itself prove guilt | `design` | [Action dictionary — Evidence confrontation](../ACTION_DICTIONARY_AND_RULES.md#evidence-confrontation) | [Engine: `_showPairs`](src/engine.js#L311) and [`_confront`](src/engine.js#L611); [tests: Focus papers confrontation](tests/engine.test.js#L461) and [accepted phrase forms](tests/engine.test.js#L476) |
+| Accusation availability, supported joint accusations, accusation accumulation, and the `close the case` / `continue investigating` choice | `design` | [Action dictionary — Accusation outcomes](../ACTION_DICTIONARY_AND_RULES.md#accusation-outcomes); [Story plan — Accusation case reports and truth window](../MIDTERM_STORY_RECONSTRUCTION_PLAN.md#accusation-case-reports-and-truth-window) | [Engine: `_apply`](src/engine.js#L392) and [`_closeCase`](src/engine.js#L502); [tests: individual outcomes](tests/engine.test.js#L626), [continued accusations](tests/engine.test.js#L705), and [Dunbar choices](tests/engine.test.js#L734) |
+| Case outcome conditions, evidence-dependent joint verdict, and the Dunbar post-case newspaper epilogue | `design` | [Action dictionary — Accusation outcomes](../ACTION_DICTIONARY_AND_RULES.md#accusation-outcomes); [Story plan — Incomplete accusation and post-case newspaper ending](../MIDTERM_STORY_RECONSTRUCTION_PLAN.md#incomplete-accusation-and-post-case-newspaper-ending) | [Engine: `_closeCase`](src/engine.js#L502) and [`_finish`](src/engine.js#L636); [tests: full and weak joint outcomes](tests/engine.test.js#L661) and [Dunbar epilogue](tests/engine.test.js#L734) |
+| Binary outcome score: `1` for a complete evidence-supported conviction, `0` for other terminal outcomes, and `null` while ongoing or awaiting a choice | `design` | [Action dictionary — Outcome score](../ACTION_DICTIONARY_AND_RULES.md#outcome-score) | [Engine: `_closeCase`](src/engine.js#L502) and [`_finish`](src/engine.js#L636); [test: complete solution score](tests/engine.test.js#L597) and [test: complete overinclusive score](tests/engine.test.js#L691) |
+| Successful-action limit, submitted-call limit, timeout behavior, terminal reasons, and limit precedence | `design` | [Story plan — Episode boundary and player choices](../MIDTERM_STORY_RECONSTRUCTION_PLAN.md#episode-boundary-and-player-choices); [Action dictionary — Interview and search rules](../ACTION_DICTIONARY_AND_RULES.md#interview-and-search-rules) | [Engine: constructor](src/engine.js#L161), [`outcome`](src/engine.js#L230), [`end_episode`](src/engine.js#L238), and [`step`](src/engine.js#L243); [model request timeout](players/model-player.js#L11); [runner error termination](players/trial-runner.js#L74); [tests: limits](tests/engine.test.js#L771) and [75th-action boundary](tests/engine.test.js#L785) |
+| Detective observation boundary, available action-word heads, hidden-state separation, and no legal-action list to players | `design` | [Project instructions — How to work](../AGENTS.md#how-to-work); [Action dictionary — State and movement](../ACTION_DICTIONARY_AND_RULES.md#state-and-movement) | [Engine: `observe`](src/engine.js#L179), [`legal_actions`](src/engine.js#L214), and [`legal_action_words`](src/engine.js#L220); [tests: role and observation boundary](tests/engine.test.js#L7) and [model adapter input boundary](tests/engine.test.js#L825) |
+
+## Research & Critical Depth (Rubric 1b): Scope, Omissions, and Adaptations
 
 Included: one case, four suspects (Baxter, Dunbar, George, Mrs. Robner), four
 rooms (Living Room, Library, Kitchen, Garden), a supervised group, voluntary
-private interviews, the evidence chain, optional hidden safe, five distinct
-accusation paths, the incomplete Dunbar-case epilogue, and the
-evidence-dependent joint accusation.
+private interviews, the evidence chain, the optional hidden safe, five
+accusation paths, the incomplete Dunbar-case epilogue, and an
+evidence-dependent joint accusation. The complete bounded episode and
+termination conditions are specified in [Episode boundary and player
+choices](../MIDTERM_STORY_RECONSTRUCTION_PLAN.md#episode-boundary-and-player-choices).
 
 Excluded: the larger cast and timeline, real-time movement, formal arrests,
-other source ticket-search branches, parser synonyms, the combination puzzle, separate
-closet, and interactive simulation of the post-case murder. These cuts keep
-the case finishable while preserving the approved clue logic.
+other source ticket-search branches, parser synonyms, the combination puzzle,
+the separate closet, and interactive simulation of the post-case murder. The
+cuts keep the case finishable while preserving the approved clue logic.
 
-| Rule group | Label | Evidence and locator |
-| --- | --- | --- |
-| Four suspects, four rooms, opening situation, patrol supervision | `design` | [Story plan: bounded cast and room model](../MIDTERM_STORY_RECONSTRUCTION_PLAN.md#bounded-cast-and-room-model); [action dictionary: state and movement](../ACTION_DICTIONARY_AND_RULES.md#state-and-movement) |
-| Legal actions, contexts, entry-two letter, search and interview behavior | `design` | [Action dictionary: command forms and room actions](../ACTION_DICTIONARY_AND_RULES.md#command-forms); [suspect questions and interviews](../ACTION_DICTIONARY_AND_RULES.md#suspect-questions-and-interviews) |
-| Evidence dependencies and lab results | `design` | [Action dictionary: Library, Kitchen, and Garden actions](../ACTION_DICTIONARY_AND_RULES.md#room-specific-object-actions) |
-| Five accusation paths, close/continue choice after each accusation, and truth window | `design` | [Action dictionary: accusation outcomes](../ACTION_DICTIONARY_AND_RULES.md#accusation-outcomes); [story plan: accusation case reports and truth window](../MIDTERM_STORY_RECONSTRUCTION_PLAN.md#accusation-case-reports-and-truth-window) |
-| 75 successful-action episode, 100-call and 60-second runner defaults | `design` | [AGENTS.md settled implementation defaults](../AGENTS.md#design-specifications-and-their-purposes); enforced in `src/engine.js` and `players/run.js` |
-| Role-scoped observation and model action boundary | `design` | [AGENTS.md source and implementation constraints](../AGENTS.md#how-to-work); exposed fields are in `src/engine.js`, inputs in `players/model-player.js` |
-| Browser presentation and action ordering | `design` | This implementation's text-first responsive interface in `src/main.js` and `src/style.css` |
-| Fixed-priority baseline policy | `design` | [EVALUATION.md](EVALUATION.md#baseline-and-comparison); `players/baseline.js` |
+## Research & Critical Depth (Rubric 1c): Sources and Reuse Terms
 
-### Credit and reuse terms
-
-The game is an original implementation. The historical source collection
-identifies *Deadline* as a 1982 Infocom game written by Marc Blank and says
-the contributed source collection is not under an open license ([collection
-README](../README.md), “What is this Repository?” and “Purpose”). The student
-confirmed publication permission for source dialogue used in this course
-adaptation. This project does not copy source code, compiled files, or assets.
-See the [story evidence notes](../STORY_AND_SUSPECT_EVIDENCE.md) and [bounded
-route audit](SOURCE_FLOW_AUDIT.md) for source locations and intentional
-differences.
-
-The approved story/action specifications are the authority for this bounded
-adaptation. Rule-map entries use `design` because they are selected or adapted
-rules, not claims that this implementation reproduces upstream code.
+The game is an original implementation of a bounded adaptation. The historical
+source collection identifies *Deadline* as a 1982 Infocom game written by Marc
+Blank and states that the contributed source collection is not under an open
+license ([collection README](../README.md), “What is this Repository?” and
+“Purpose”). The student confirmed publication permission for source dialogue
+used in this course adaptation. This project copies no source code, compiled
+files, or assets. See the [story evidence notes](../STORY_AND_SUSPECT_EVIDENCE.md)
+and [bounded route audit](SOURCE_FLOW_AUDIT.md) for source locations and
+intentional differences. The approved story and action specifications are the
+authority for this bounded adaptation; all implemented game rules are labeled
+`design` because they are selected or adapted rules, not claims of upstream
+code fidelity.
